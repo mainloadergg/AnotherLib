@@ -3542,7 +3542,7 @@ ElementsTable.DiscordInvite = (function()
 					Content = "Invite copied!",
 					SubContent = tostring(url),
 					Duration = 3,
-				end)
+				})
 			end)
 			if Config.Callback then
 				Library:SafeCallback(Config.Callback, url)
