@@ -1609,7 +1609,7 @@ Components.Tab = (function()
 		})
 
 		Creator.AddSignal(ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-			local h = ContainerLayout.AbsoluteContentSize.Y + 16
+			local h = ContainerLayout.AbsoluteContentSize.Y + 40
 			if Tab.ContainerFrame.CanvasSize.Y.Offset ~= h then
 				Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, h)
 			end
@@ -1670,10 +1670,10 @@ Components.Tab = (function()
 					BackgroundTransparency = 1,
 					BorderSizePixel = 0,
 					ScrollBarThickness = 4,
-					ScrollBarImageTransparency = 0.8,
+					ScrollBarImageTransparency = 0.75,
 					ScrollingDirection = Enum.ScrollingDirection.Y,
 					CanvasSize = UDim2.new(0, 0, 0, 0),
-					AutomaticCanvasSize = Enum.AutomaticSize.Y,
+					AutomaticCanvasSize = Enum.AutomaticSize.None,
 					ScrollingEnabled = true,
 					Active = true,
 					ClipsDescendants = true,
@@ -1689,9 +1689,19 @@ Components.Tab = (function()
 						PaddingRight = UDim.new(0, 8),
 						PaddingLeft = UDim.new(0, 2),
 						PaddingTop = UDim.new(0, 4),
-						PaddingBottom = UDim.new(0, 12),
+						PaddingBottom = UDim.new(0, 16),
 					}),
 				})
+				local function refreshCanvas()
+					local h = colLayout.AbsoluteContentSize.Y + 40
+					if scroll.CanvasSize.Y.Offset ~= h then
+						scroll.CanvasSize = UDim2.new(0, 0, 0, h)
+					end
+				end
+				colLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+					task.defer(refreshCanvas)
+				end)
+				task.defer(refreshCanvas)
 				return scroll
 			end
 
@@ -3019,7 +3029,7 @@ ElementsTable.Toggle = (function()
 			Type = "Toggle",
 		}
 
-		local ToggleFrame = Components.Element(Config.Title, Config.Description, self.Container, true, Config)
+		local ToggleFrame = Components.Element(Config.Title, Config.Description, self.Container, false, Config)
 		ToggleFrame.DescLabel.Size = UDim2.new(1, -54, 0, 14)
 
 		Toggle.SetTitle = ToggleFrame.SetTitle
@@ -3045,12 +3055,15 @@ ElementsTable.Toggle = (function()
 			},
 		})
 
-		local ToggleSlider = New("Frame", {
+		local ToggleSlider = New("TextButton", {
 			Size = UDim2.fromOffset(36, 18),
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, -10, 0.5, 0),
 			Parent = ToggleFrame.Frame,
 			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			Active = true,
 			ThemeTag = {
 				BackgroundColor3 = "Accent",
 			},
@@ -3094,6 +3107,10 @@ ElementsTable.Toggle = (function()
 			Library.Options[Idx] = nil
 		end
 
+		Creator.AddSignal(ToggleSlider.Activated, function()
+			Toggle:SetValue(not Toggle.Value)
+		end)
+		-- whole row also toggles but stays non-Active for scroll pass-through on mobile
 		Creator.AddSignal(ToggleFrame.Frame.MouseButton1Click, function()
 			Toggle:SetValue(not Toggle.Value)
 		end)
@@ -3212,129 +3229,128 @@ ElementsTable.Dropdown = (function()
 		})
 
 		local DropdownListLayout = New("UIListLayout", {
-			Padding = UDim.new(0, 3),
+			Padding = UDim.new(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
-		local DropdownScrollFrame = New("ScrollingFrame", {
-			Size = UDim2.new(1, -5, 1, -10),
-			Position = UDim2.fromOffset(5, 5),
+		-- ===== Modal dropdown (Genesis-style): dim overlay + centered panel =====
+		local ModalRoot = New("TextButton", {
+			Name = "DropdownModal",
+			Size = UDim2.fromScale(1, 1),
+			Position = UDim2.fromScale(0, 0),
+			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
 			BackgroundTransparency = 1,
-			BottomImage = "rbxassetid://6889812791",
-			MidImage = "rbxassetid://6889812721",
-			TopImage = "rbxassetid://6276641225",
-			ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255),
-			ScrollBarImageTransparency = 0.75,
-			ScrollBarThickness = 5,
-			BorderSizePixel = 0,
-			CanvasSize = UDim2.fromScale(0, 0),
-			ScrollingDirection = Enum.ScrollingDirection.Y,
-		}, {
-			DropdownListLayout,
+			Text = "",
+			AutoButtonColor = false,
+			Visible = false,
+			ZIndex = 200,
+			Parent = Library.GUI,
 		})
 
-		local DropdownHolderFrame = New("Frame", {
-			Size = UDim2.fromScale(1, 0.6),
+		local ModalPanel = New("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 280, 0, 320),
+			BackgroundTransparency = 0.05,
+			ZIndex = 201,
+			Parent = ModalRoot,
 			ThemeTag = {
 				BackgroundColor3 = "DropdownHolder",
 			},
 		}, {
-			DropdownScrollFrame,
-			New("UICorner", {
-				CornerRadius = UDim.new(0, 7),
-			}),
+			New("UICorner", { CornerRadius = UDim.new(0, 10) }),
 			New("UIStroke", {
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-				ThemeTag = {
-					Color = "DropdownBorder",
-				},
+				Transparency = 0.4,
+				ThemeTag = { Color = "DropdownBorder" },
 			}),
-			New("ImageLabel", {
-				BackgroundTransparency = 1,
-				Image = "http://www.roblox.com/asset/?id=5554236805",
-				ScaleType = Enum.ScaleType.Slice,
-				SliceCenter = Rect.new(23, 23, 277, 277),
-				Size = UDim2.fromScale(1, 1) + UDim2.fromOffset(30, 30),
-				Position = UDim2.fromOffset(-15, -15),
-				ImageColor3 = Color3.fromRGB(0, 0, 0),
-				ImageTransparency = 0.1,
-			}),
-		})
-
-		local DropdownHolderCanvas = New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(170, 300),
-			Parent = Library.GUI,
-			Visible = false,
-			ZIndex = 50,
-		}, {
-			DropdownHolderFrame,
 			New("UISizeConstraint", {
-				MinSize = Vector2.new(170, 0),
+				MinSize = Vector2.new(220, 160),
+				MaxSize = Vector2.new(360, 420),
 			}),
 		})
-		DropdownHolderFrame.ZIndex = 51
-		DropdownScrollFrame.ZIndex = 52
-		table.insert(Library.OpenFrames, DropdownHolderCanvas)
 
-		local _recalcPos = false
-		local function RecalculateListPosition()
-			if not Dropdown.Opened then
-				return
-			end
-			if _recalcPos then
-				return
-			end
-			_recalcPos = true
-			local add = 0
-			local innerY = DropdownInner.AbsolutePosition.Y
-			local canvasH = DropdownHolderCanvas.AbsoluteSize.Y
-			if Camera.ViewportSize.Y - innerY < canvasH - 5 then
-				add = canvasH - 5 - (Camera.ViewportSize.Y - innerY) + 40
-			end
-			local nx = DropdownInner.AbsolutePosition.X - 1
-			local ny = innerY - 5 - add
-			local cur = DropdownHolderCanvas.Position
-			if cur.X.Offset ~= nx or cur.Y.Offset ~= ny then
-				DropdownHolderCanvas.Position = UDim2.fromOffset(nx, ny)
-			end
-			task.defer(function()
-				_recalcPos = false
-			end)
-		end
+		local ModalTitle = New("TextLabel", {
+			Text = tostring(Config.Title or "Select"),
+			FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+			TextSize = 16,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -48, 0, 28),
+			Position = UDim2.fromOffset(14, 10),
+			ZIndex = 202,
+			Parent = ModalPanel,
+			ThemeTag = { TextColor3 = "Text" },
+		})
 
-		local ListSizeX = 0
+		local ModalClose = New("TextButton", {
+			Text = "×",
+			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+			TextSize = 22,
+			TextColor3 = Color3.fromRGB(220, 220, 230),
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(32, 32),
+			Position = UDim2.new(1, -36, 0, 6),
+			ZIndex = 202,
+			AutoButtonColor = false,
+			Parent = ModalPanel,
+		})
+
+		local DropdownScrollFrame = New("ScrollingFrame", {
+			Size = UDim2.new(1, -16, 1, -52),
+			Position = UDim2.fromOffset(8, 44),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ScrollBarThickness = 4,
+			ScrollBarImageTransparency = 0.7,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ZIndex = 202,
+			Parent = ModalPanel,
+			BottomImage = "rbxassetid://6889812791",
+			MidImage = "rbxassetid://6889812721",
+			TopImage = "rbxassetid://6276641225",
+		}, {
+			DropdownListLayout,
+			New("UIPadding", {
+				PaddingBottom = UDim.new(0, 8),
+				PaddingTop = UDim.new(0, 2),
+			}),
+		})
+
+		-- legacy aliases so rest of BuildDropdownList keeps working
+		local DropdownHolderCanvas = ModalRoot
+		local DropdownHolderFrame = ModalPanel
+		table.insert(Library.OpenFrames, ModalRoot)
+
 		local function RecalculateListSize()
-			if #Dropdown.Values > 10 then
-				DropdownHolderCanvas.Size = UDim2.fromOffset(math.max(ListSizeX, 170), 392)
-			else
-				DropdownHolderCanvas.Size = UDim2.fromOffset(math.max(ListSizeX, 170), DropdownListLayout.AbsoluteContentSize.Y + 10)
+			local count = #Dropdown.Values
+			local h = math.clamp(count * 36 + 60, 180, 400)
+			local w = 280
+			if Library.Window and Library.Window.TwoSides then
+				w = 260
 			end
+			ModalPanel.Size = UDim2.fromOffset(w, h)
 		end
 
 		local function RecalculateCanvasSize()
-			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y)
+			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y + 8)
 		end
 
-		RecalculateListSize()
-
-		-- Only track position while the dropdown is OPEN (prevents scroll re-entrancy spam)
-		local posConn = nil
-		local function BindPosTrack()
-			if posConn then return end
-			posConn = DropdownInner:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-				if Dropdown.Opened then
-					task.defer(RecalculateListPosition)
-				end
-			end)
-		end
-		local function UnbindPosTrack()
-			if posConn then
-				posConn:Disconnect()
-				posConn = nil
-			end
+		local function RecalculateListPosition()
+			-- modal is always centered — no-op (kept for compatibility)
 		end
 
-		-- Open on click/tap (Activated works for mouse + touch)
+		Creator.AddSignal(ModalRoot.Activated, function()
+			Dropdown:Close()
+		end)
+		Creator.AddSignal(ModalClose.Activated, function()
+			Dropdown:Close()
+		end)
+		-- don't close when clicking the panel itself
+		Creator.AddSignal(ModalPanel.InputBegan, function() end)
+
 		Creator.AddSignal(DropdownInner.Activated, function()
 			if Dropdown.Opened then
 				Dropdown:Close()
@@ -3343,57 +3359,37 @@ ElementsTable.Dropdown = (function()
 			end
 		end)
 
-		-- Close when tapping outside list AND outside trigger (use Input.Position, not Mouse — mobile safe)
-		Creator.AddSignal(UserInputService.InputBegan, function(Input)
-			if not Dropdown.Opened then
-				return
-			end
-			if
-				Input.UserInputType ~= Enum.UserInputType.MouseButton1
-				and Input.UserInputType ~= Enum.UserInputType.Touch
-			then
-				return
-			end
-			local pos = Input.Position
-			local function inside(gui)
-				local p, s = gui.AbsolutePosition, gui.AbsoluteSize
-				return pos.X >= p.X and pos.X <= p.X + s.X and pos.Y >= p.Y and pos.Y <= p.Y + s.Y
-			end
-			-- ignore presses on the trigger button itself (Activated toggles)
-			if inside(DropdownInner) then
-				return
-			end
-			if inside(DropdownHolderFrame) then
-				return
-			end
-			Dropdown:Close()
-		end)
-
 		local ScrollFrame = self.ScrollFrame
 		function Dropdown:Open()
 			Dropdown.Opened = true
 			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
 				ScrollFrame.ScrollingEnabled = false
 			end
-			DropdownHolderCanvas.Visible = true
 			RecalculateListSize()
-			RecalculateListPosition()
-			BindPosTrack()
+			ModalRoot.Visible = true
+			ModalRoot.BackgroundTransparency = 1
+			ModalPanel.Size = UDim2.fromOffset(ModalPanel.Size.X.Offset, 40)
+			TweenService:Create(ModalRoot, TweenInfo.new(0.2), { BackgroundTransparency = 0.45 }):Play()
+			local targetH = math.clamp(#Dropdown.Values * 36 + 60, 180, 400)
+			local targetW = ModalPanel.Size.X.Offset
 			TweenService:Create(
-				DropdownHolderFrame,
-				TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-				{ Size = UDim2.fromScale(1, 1) }
+				ModalPanel,
+				TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+				{ Size = UDim2.fromOffset(targetW, targetH) }
 			):Play()
 		end
 
 		function Dropdown:Close()
 			Dropdown.Opened = false
-			UnbindPosTrack()
 			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
 				ScrollFrame.ScrollingEnabled = true
 			end
-			DropdownHolderFrame.Size = UDim2.fromScale(1, 0.6)
-			DropdownHolderCanvas.Visible = false
+			TweenService:Create(ModalRoot, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+			task.delay(0.16, function()
+				if not Dropdown.Opened then
+					ModalRoot.Visible = false
+				end
+			end)
 		end
 
 		function Dropdown:Display()
@@ -3433,7 +3429,7 @@ ElementsTable.Dropdown = (function()
 			local Buttons = {}
 
 			for _, Element in next, DropdownScrollFrame:GetChildren() do
-				if not Element:IsA("UIListLayout") then
+				if Element:IsA("TextButton") or Element:IsA("ImageButton") then
 					Element:Destroy()
 				end
 			end
@@ -3563,6 +3559,9 @@ ElementsTable.Dropdown = (function()
 
 							Library:SafeCallback(Dropdown.Callback, Dropdown.Value)
 							Library:SafeCallback(Dropdown.Changed, Dropdown.Value)
+							if not Config.Multi then
+								Dropdown:Close()
+							end
 						end
 					end
 				end)
@@ -3895,6 +3894,9 @@ ElementsTable.Slider = (function()
 			Slider:SetValue(Slider.Min + ((Slider.Max - Slider.Min) * SizeScale))
 		end
 
+		-- Gesture: only drag after intentional horizontal movement (doesn't steal vertical scroll)
+		local tracking = false
+		local startPos = nil
 		local activeTouch = nil
 
 		Creator.AddSignal(SliderHit.InputBegan, function(Input)
@@ -3902,42 +3904,72 @@ ElementsTable.Slider = (function()
 				Input.UserInputType == Enum.UserInputType.MouseButton1
 				or Input.UserInputType == Enum.UserInputType.Touch
 			then
-				Dragging = true
+				tracking = true
+				Dragging = false
+				startPos = Input.Position
 				activeTouch = Input
-				UpdateFromX(Input.Position.X)
 			end
 		end)
+
+		local function EndDrag()
+			tracking = false
+			Dragging = false
+			startPos = nil
+			activeTouch = nil
+		end
 
 		Creator.AddSignal(SliderHit.InputEnded, function(Input)
-			if
-				Input.UserInputType == Enum.UserInputType.MouseButton1
-				or Input.UserInputType == Enum.UserInputType.Touch
-			then
-				Dragging = false
-				activeTouch = nil
-			end
-		end)
-
-		Creator.AddSignal(UserInputService.InputEnded, function(Input)
 			if Input == activeTouch
 				or Input.UserInputType == Enum.UserInputType.MouseButton1
 				or Input.UserInputType == Enum.UserInputType.Touch
 			then
-				if Dragging then
-					Dragging = false
-					activeTouch = nil
+				-- tap without drag: still set value under finger
+				if tracking and not Dragging and startPos then
+					local dx = math.abs(Input.Position.X - startPos.X)
+					local dy = math.abs(Input.Position.Y - startPos.Y)
+					if dx <= 6 and dy <= 6 then
+						UpdateFromX(Input.Position.X)
+					end
 				end
+				EndDrag()
+			end
+		end)
+
+		Creator.AddSignal(UserInputService.InputEnded, function(Input)
+			if tracking and (Input == activeTouch
+				or Input.UserInputType == Enum.UserInputType.MouseButton1
+				or Input.UserInputType == Enum.UserInputType.Touch)
+			then
+				EndDrag()
 			end
 		end)
 
 		Creator.AddSignal(UserInputService.InputChanged, function(Input)
-			if not Dragging then
+			if not tracking then
 				return
 			end
 			if
-				Input.UserInputType == Enum.UserInputType.MouseMovement
-				or Input.UserInputType == Enum.UserInputType.Touch
+				Input.UserInputType ~= Enum.UserInputType.MouseMovement
+				and Input.UserInputType ~= Enum.UserInputType.Touch
 			then
+				return
+			end
+			if not startPos then
+				return
+			end
+			local dx = Input.Position.X - startPos.X
+			local dy = Input.Position.Y - startPos.Y
+			if not Dragging then
+				-- require clearer horizontal intent so vertical scroll wins
+				if math.abs(dy) > 10 and math.abs(dy) > math.abs(dx) then
+					EndDrag() -- user is scrolling the page
+					return
+				end
+				if math.abs(dx) > 8 and math.abs(dx) > math.abs(dy) then
+					Dragging = true
+				end
+			end
+			if Dragging then
 				UpdateFromX(Input.Position.X)
 			end
 		end)
