@@ -1634,42 +1634,62 @@ Components.Tab = (function()
 		Tab.Container = Tab.ContainerFrame
 		Tab.ScrollFrame = Tab.Container
 
-		-- TwoSides: split content into Left / Right columns
+		-- TwoSides: independent scroll columns (Left / Right do not share canvas)
 		if Library.Window and Library.Window.TwoSides then
+			-- parent scroller becomes a static split holder
+			Tab.ContainerFrame.ScrollingEnabled = false
+			Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+			Tab.ContainerFrame.ScrollBarThickness = 0
+
 			local Holder = New("Frame", {
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
+				Size = UDim2.fromScale(1, 1),
 				BackgroundTransparency = 1,
 				Parent = Tab.ContainerFrame,
 			}, {
 				New("UIListLayout", {
 					FillDirection = Enum.FillDirection.Horizontal,
-					Padding = UDim.new(0, 12),
+					Padding = UDim.new(0, 10),
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				}),
 			})
-			local function MakeCol(order)
+
+			local function MakeSide(order)
 				local colLayout = New("UIListLayout", {
 					Padding = UDim.new(0, 8),
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				})
-				local col = New("Frame", {
-					Size = UDim2.new(0.5, -6, 0, 0),
-					AutomaticSize = Enum.AutomaticSize.Y,
+				local scroll = New("ScrollingFrame", {
+					Size = UDim2.new(0.5, -5, 1, 0),
 					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					ScrollBarThickness = 3,
+					ScrollBarImageTransparency = 0.85,
+					ScrollingDirection = Enum.ScrollingDirection.Y,
+					CanvasSize = UDim2.new(0, 0, 0, 0),
+					AutomaticCanvasSize = Enum.AutomaticSize.Y,
 					LayoutOrder = order,
 					Parent = Holder,
+					BottomImage = "rbxassetid://6889812791",
+					MidImage = "rbxassetid://6889812721",
+					TopImage = "rbxassetid://6276641225",
 				}, {
 					colLayout,
+					New("UIPadding", {
+						PaddingRight = UDim.new(0, 6),
+						PaddingLeft = UDim.new(0, 2),
+						PaddingTop = UDim.new(0, 4),
+						PaddingBottom = UDim.new(0, 10),
+					}),
 				})
-				return col
+				return scroll
 			end
+
 			Tab._Sides = {
-				Left = MakeCol(1),
-				Right = MakeCol(2),
+				Left = MakeSide(1),
+				Right = MakeSide(2),
 			}
-			-- default container for elements without section side still uses left
 			Tab.Container = Tab._Sides.Left
+			Tab.ScrollFrame = Tab.ContainerFrame
 		end
 
 		function Tab:AddSection(SectionTitle, Icon)
@@ -1689,7 +1709,8 @@ Components.Tab = (function()
 
 			local SectionFrame = Components.Section(SectionTitle, parent, Icon)
 			Section.Container = SectionFrame.Container
-			Section.ScrollFrame = Tab.Container
+			-- lock the specific side scroll (TwoSides) or the main tab scroll
+			Section.ScrollFrame = (type(parent) == "userdata" and parent:IsA("ScrollingFrame")) and parent or Tab.ContainerFrame
 			Section.Root = SectionFrame.Root
 
 			setmetatable(Section, Elements)
@@ -3096,25 +3117,38 @@ ElementsTable.Dropdown = (function()
 		end
 
 		local DropdownFrame = Components.Element(Config.Title, Config.Description, self.Container, false, Config)
-		DropdownFrame.DescLabel.Size = UDim2.new(1, -170, 0, 14)
 
 		Dropdown.SetTitle = DropdownFrame.SetTitle
 		Dropdown.SetDesc = DropdownFrame.SetDesc
 		Dropdown.Visible = DropdownFrame.Visible
 		Dropdown.Elements = DropdownFrame
 
+		local isTwoSides = Library.Window and Library.Window.TwoSides
+		-- TwoSides: narrower box + aggressive truncate; normal keeps wider box
+		local dropW = isTwoSides and 118 or 160
+		local titleShrink = isTwoSides and -130 or -170
+		DropdownFrame.DescLabel.Size = UDim2.new(1, titleShrink, 0, 14)
+		if DropdownFrame.TitleLabel then
+			DropdownFrame.TitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+			if isTwoSides then
+				DropdownFrame.TitleLabel.TextSize = 12
+				DropdownFrame.TitleLabel.TextWrapped = true
+			end
+		end
+
 		local DropdownDisplay = New("TextLabel", {
 			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
 			Text = "Value",
 			TextColor3 = Color3.fromRGB(240, 240, 240),
-			TextSize = 13,
+			TextSize = isTwoSides and 11 or 13,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Size = UDim2.new(1, -30, 0, 14),
+			Size = UDim2.new(1, -28, 1, -4),
 			Position = UDim2.new(0, 8, 0.5, 0),
 			AnchorPoint = Vector2.new(0, 0.5),
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BackgroundTransparency = 1,
 			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextWrapped = false,
+			ClipsDescendants = true,
 			ThemeTag = {
 				TextColor3 = "Text",
 			},
@@ -3122,20 +3156,24 @@ ElementsTable.Dropdown = (function()
 
 		local DropdownIco = New("ImageLabel", {
 			Image = "rbxassetid://10709790948",
-			Size = UDim2.fromOffset(16, 16),
+			Size = UDim2.fromOffset(14, 14),
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -8, 0.5, 0),
+			Position = UDim2.new(1, -6, 0.5, 0),
 			BackgroundTransparency = 1,
+			ZIndex = 2,
 			ThemeTag = {
 				ImageColor3 = "SubText",
 			},
 		})
 
 		local DropdownInner = New("TextButton", {
-			Size = UDim2.fromOffset(160, 30),
-			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(dropW, 30),
+			Position = UDim2.new(1, -8, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
 			BackgroundTransparency = 0.9,
+			AutoButtonColor = false,
+			Text = "",
+			ClipsDescendants = true,
 			Parent = DropdownFrame.Frame,
 			ThemeTag = {
 				BackgroundColor3 = "DropdownFrame",
@@ -3209,12 +3247,15 @@ ElementsTable.Dropdown = (function()
 			Size = UDim2.fromOffset(170, 300),
 			Parent = Library.GUI,
 			Visible = false,
+			ZIndex = 50,
 		}, {
 			DropdownHolderFrame,
 			New("UISizeConstraint", {
 				MinSize = Vector2.new(170, 0),
 			}),
 		})
+		DropdownHolderFrame.ZIndex = 51
+		DropdownScrollFrame.ZIndex = 52
 		table.insert(Library.OpenFrames, DropdownHolderCanvas)
 
 		local function RecalculateListPosition()
@@ -3247,32 +3288,50 @@ ElementsTable.Dropdown = (function()
 
 		Creator.AddSignal(DropdownInner:GetPropertyChangedSignal("AbsolutePosition"), RecalculateListPosition)
 
-		Creator.AddSignal(DropdownInner.MouseButton1Click, function()
-			Dropdown:Open()
+		-- Open on click/tap (Activated works for mouse + touch)
+		Creator.AddSignal(DropdownInner.Activated, function()
+			if Dropdown.Opened then
+				Dropdown:Close()
+			else
+				Dropdown:Open()
+			end
 		end)
 
+		-- Close when tapping outside list AND outside trigger (use Input.Position, not Mouse — mobile safe)
 		Creator.AddSignal(UserInputService.InputBegan, function(Input)
-			if
-				Input.UserInputType == Enum.UserInputType.MouseButton1
-				or Input.UserInputType == Enum.UserInputType.Touch
-			then
-				local AbsPos, AbsSize = DropdownHolderFrame.AbsolutePosition, DropdownHolderFrame.AbsoluteSize
-				if
-					Mouse.X < AbsPos.X
-					or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1)
-					or Mouse.Y > AbsPos.Y + AbsSize.Y
-				then
-					Dropdown:Close()
-				end
+			if not Dropdown.Opened then
+				return
 			end
+			if
+				Input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and Input.UserInputType ~= Enum.UserInputType.Touch
+			then
+				return
+			end
+			local pos = Input.Position
+			local function inside(gui)
+				local p, s = gui.AbsolutePosition, gui.AbsoluteSize
+				return pos.X >= p.X and pos.X <= p.X + s.X and pos.Y >= p.Y and pos.Y <= p.Y + s.Y
+			end
+			-- ignore presses on the trigger button itself (Activated toggles)
+			if inside(DropdownInner) then
+				return
+			end
+			if inside(DropdownHolderFrame) then
+				return
+			end
+			Dropdown:Close()
 		end)
 
 		local ScrollFrame = self.ScrollFrame
 		function Dropdown:Open()
 			Dropdown.Opened = true
-			ScrollFrame.ScrollingEnabled = false
+			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
+				ScrollFrame.ScrollingEnabled = false
+			end
 			DropdownHolderCanvas.Visible = true
+			RecalculateListPosition()
+			RecalculateListSize()
 			TweenService:Create(
 				DropdownHolderFrame,
 				TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -3282,7 +3341,9 @@ ElementsTable.Dropdown = (function()
 
 		function Dropdown:Close()
 			Dropdown.Opened = false
-			ScrollFrame.ScrollingEnabled = true
+			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
+				ScrollFrame.ScrollingEnabled = true
+			end
 			DropdownHolderFrame.Size = UDim2.fromScale(1, 0.6)
 			DropdownHolderCanvas.Visible = false
 		end
@@ -3694,11 +3755,15 @@ ElementsTable.Slider = (function()
 		Slider.SetDesc = SliderFrame.SetDesc
 		Slider.Visible = SliderFrame.Visible
 
+		local isTwoSides = Library.Window and Library.Window.TwoSides
+		local maxTrack = isTwoSides and 110 or 150
+
 		local SliderDot = New("ImageLabel", {
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, -7, 0.5, 0),
-			Size = UDim2.fromOffset(14, 14),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0, 0, 0.5, 0),
+			Size = UDim2.fromOffset(18, 18),
 			Image = "http://www.roblox.com/asset/?id=12266946128",
+			ZIndex = 3,
 			ThemeTag = {
 				ImageColor3 = "Accent",
 			},
@@ -3706,14 +3771,16 @@ ElementsTable.Slider = (function()
 
 		local SliderRail = New("Frame", {
 			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(7, 0),
-			Size = UDim2.new(1, -14, 1, 0),
+			Position = UDim2.fromOffset(9, 0),
+			Size = UDim2.new(1, -18, 1, 0),
+			ZIndex = 2,
 		}, {
 			SliderDot,
 		})
 
 		local SliderFill = New("Frame", {
 			Size = UDim2.new(0, 0, 1, 0),
+			ZIndex = 1,
 			ThemeTag = {
 				BackgroundColor3 = "Accent",
 			},
@@ -3729,22 +3796,22 @@ ElementsTable.Slider = (function()
 			TextSize = 12,
 			TextWrapped = true,
 			TextXAlignment = Enum.TextXAlignment.Right,
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BackgroundTransparency = 1,
 			Size = UDim2.new(0, 100, 0, 14),
-			Position = UDim2.new(0, -4, 0.5, 0),
+			Position = UDim2.new(0, -6, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
 			ThemeTag = {
 				TextColor3 = "SubText",
 			},
 		})
 
-		local SliderInner = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 4),
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -10, 0.5, 0),
+		-- Visible thin track
+		local SliderTrack = New("Frame", {
+			Size = UDim2.new(1, 0, 0, 6),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
 			BackgroundTransparency = 0.4,
-			Parent = SliderFrame.Frame,
+			ZIndex = 1,
 			ThemeTag = {
 				BackgroundColor3 = "SliderRail",
 			},
@@ -3752,43 +3819,78 @@ ElementsTable.Slider = (function()
 			New("UICorner", {
 				CornerRadius = UDim.new(1, 0),
 			}),
-			New("UISizeConstraint", {
-				MaxSize = Vector2.new(150, math.huge),
-			}),
-			SliderDisplay,
 			SliderFill,
 			SliderRail,
 		})
 
-		Creator.AddSignal(SliderDot.InputBegan, function(Input)
+		-- Full-height invisible hit button — easy mobile drag without holding the tiny dot
+		local SliderHit = New("TextButton", {
+			Size = UDim2.new(1, 0, 0, 28),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -8, 0.5, 0),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			Parent = SliderFrame.Frame,
+		}, {
+			New("UISizeConstraint", {
+				MaxSize = Vector2.new(maxTrack, math.huge),
+			}),
+			SliderDisplay,
+			SliderTrack,
+		})
+
+		local function UpdateFromX(x)
+			local absX = SliderRail.AbsolutePosition.X
+			local absW = math.max(SliderRail.AbsoluteSize.X, 1)
+			local SizeScale = math.clamp((x - absX) / absW, 0, 1)
+			Slider:SetValue(Slider.Min + ((Slider.Max - Slider.Min) * SizeScale))
+		end
+
+		local activeTouch = nil
+
+		Creator.AddSignal(SliderHit.InputBegan, function(Input)
 			if
 				Input.UserInputType == Enum.UserInputType.MouseButton1
 				or Input.UserInputType == Enum.UserInputType.Touch
 			then
 				Dragging = true
+				activeTouch = Input
+				UpdateFromX(Input.Position.X)
 			end
 		end)
 
-		Creator.AddSignal(SliderDot.InputEnded, function(Input)
+		Creator.AddSignal(SliderHit.InputEnded, function(Input)
 			if
 				Input.UserInputType == Enum.UserInputType.MouseButton1
 				or Input.UserInputType == Enum.UserInputType.Touch
 			then
 				Dragging = false
+				activeTouch = nil
+			end
+		end)
+
+		Creator.AddSignal(UserInputService.InputEnded, function(Input)
+			if Input == activeTouch
+				or Input.UserInputType == Enum.UserInputType.MouseButton1
+				or Input.UserInputType == Enum.UserInputType.Touch
+			then
+				if Dragging then
+					Dragging = false
+					activeTouch = nil
+				end
 			end
 		end)
 
 		Creator.AddSignal(UserInputService.InputChanged, function(Input)
+			if not Dragging then
+				return
+			end
 			if
-				Dragging
-				and (
-					Input.UserInputType == Enum.UserInputType.MouseMovement
-						or Input.UserInputType == Enum.UserInputType.Touch
-				)
+				Input.UserInputType == Enum.UserInputType.MouseMovement
+				or Input.UserInputType == Enum.UserInputType.Touch
 			then
-				local SizeScale =
-					math.clamp((Input.Position.X - SliderRail.AbsolutePosition.X) / SliderRail.AbsoluteSize.X, 0, 1)
-				Slider:SetValue(Slider.Min + ((Slider.Max - Slider.Min) * SizeScale))
+				UpdateFromX(Input.Position.X)
 			end
 		end)
 
@@ -3799,8 +3901,9 @@ ElementsTable.Slider = (function()
 
 		function Slider:SetValue(Value)
 			self.Value = Library:Round(math.clamp(Value, Slider.Min, Slider.Max), Slider.Rounding)
-			SliderDot.Position = UDim2.new((self.Value - Slider.Min) / (Slider.Max - Slider.Min), -7, 0.5, 0)
-			SliderFill.Size = UDim2.fromScale((self.Value - Slider.Min) / (Slider.Max - Slider.Min), 1)
+			local scale = (Slider.Max == Slider.Min) and 0 or ((self.Value - Slider.Min) / (Slider.Max - Slider.Min))
+			SliderDot.Position = UDim2.new(scale, 0, 0.5, 0)
+			SliderFill.Size = UDim2.fromScale(scale, 1)
 			SliderDisplay.Text = tostring(self.Value)
 
 			Library:SafeCallback(Slider.Callback, self.Value)
