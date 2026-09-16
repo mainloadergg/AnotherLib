@@ -32,6 +32,26 @@ end)
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or function(f) end
 
+local function GetUIParent()
+	-- Always prefer CoreGui (100% CoreGui as requested)
+	local ok, core = pcall(function()
+		return game:GetService("CoreGui")
+	end)
+	if ok and core then
+		if gethui then
+			local ok2, hui = pcall(gethui)
+			if ok2 and hui then return hui end
+		end
+		if cloneref then
+			local ok3, ref = pcall(cloneref, core)
+			if ok3 and ref then return ref end
+		end
+		return core
+	end
+	return LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+end
+
+
 local Themes = {
 	Names = {
 		"GenesisX"
@@ -131,7 +151,7 @@ local function CloseOpen()
 	end
 
 	ScreenGui.Name = "OpenClose"
-	ScreenGui.Parent = RunService:IsStudio() and LocalPlayer.PlayerGui or (gethui() or cloneref(game:GetService("CoreGui")) or game:GetService("CoreGui"))
+	ScreenGui.Parent = GetUIParent()
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 	Close_ImageButton.Parent = ScreenGui
@@ -141,6 +161,7 @@ local function CloseOpen()
 	Close_ImageButton.Size = UDim2.new(0, 59, 0, 49)
 	Close_ImageButton.Image = "rbxassetid://82140212012109"
 	Close_ImageButton.Visible = false
+	Library._FloatButton = Close_ImageButton
 
 	UICorner.Name = "MainCorner"
 	UICorner.CornerRadius = UDim.new(0, 9)
@@ -814,7 +835,7 @@ local New = Creator.New
 
 local GUI = New("ScreenGui", {
 	Name = "GenesisXYZ_ScreenGui",
-	Parent = RunService:IsStudio() and LocalPlayer.PlayerGui or (gethui() or cloneref(game:GetService("CoreGui")) or game:GetService("CoreGui")),
+	Parent = GetUIParent(),
 })
 
 do
@@ -1376,9 +1397,16 @@ Components.Section = (function()
 			Section.Container,
 		})
 
+		local _secUpdating = false
 		Creator.AddSignal(Section.Layout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-			Section.Container.Size = UDim2.new(1, 0, 0, Section.Layout.AbsoluteContentSize.Y)
-			Section.Root.Size = UDim2.new(1, 0, 0, Section.Layout.AbsoluteContentSize.Y + 25)
+			if _secUpdating then return end
+			_secUpdating = true
+			local h = Section.Layout.AbsoluteContentSize.Y
+			Section.Container.Size = UDim2.new(1, 0, 0, h)
+			Section.Root.Size = UDim2.new(1, 0, 0, h + 25)
+			task.defer(function()
+				_secUpdating = false
+			end)
 		end)
 		return Section
 	end
@@ -1503,8 +1531,14 @@ Components.Tab = (function()
 			}),
 		})
 
+		local _tabUpdating = false
 		Creator.AddSignal(ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+			if _tabUpdating then return end
+			_tabUpdating = true
 			Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, ContainerLayout.AbsoluteContentSize.Y + 2)
+			task.defer(function()
+				_tabUpdating = false
+			end)
 		end)
 
 		Tab.Motor, Tab.SetTransparency = Creator.SpringMotor(1, Tab.Frame, "BackgroundTransparency")
@@ -2147,7 +2181,7 @@ Components.TitleBar = (function()
 			}
 
 			Button.Frame = New("TextButton", {
-				Size = UDim2.new(0, 34, 1, -8),
+				Size = UDim2.new(0, 28, 1, -6),
 				AnchorPoint = Vector2.new(1, 0),
 				BackgroundTransparency = 1,
 				Parent = Parent,
@@ -2197,7 +2231,7 @@ Components.TitleBar = (function()
 		end
 
 		TitleBar.Frame = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 42),
+			Size = UDim2.new(1, 0, 0, 32),
 			BackgroundTransparency = 1,
 			Parent = Config.Parent,
 		}, {
@@ -2259,7 +2293,7 @@ Components.TitleBar = (function()
 			}),
 		})
 
-		TitleBar.CloseButton = BarButton(Components.Assets.Close, UDim2.new(1, -4, 0, 4), TitleBar.Frame, function()
+		TitleBar.CloseButton = BarButton(Components.Assets.Close, UDim2.new(1, -2, 0, 3), TitleBar.Frame, function()
 			Library.Window:Dialog({
 				Title = "Close",
 				Content = "Are you sure you want to unload the interface?",
@@ -2276,10 +2310,10 @@ Components.TitleBar = (function()
 				},
 			})
 		end)
-		TitleBar.MaxButton = BarButton(Components.Assets.Max, UDim2.new(1, -40, 0, 4), TitleBar.Frame, function()
+		TitleBar.MaxButton = BarButton(Components.Assets.Max, UDim2.new(1, -34, 0, 3), TitleBar.Frame, function()
 			Config.Window.Maximize(not Config.Window.Maximized)
 		end)
-		TitleBar.MinButton = BarButton(Components.Assets.Min, UDim2.new(1, -80, 0, 4), TitleBar.Frame, function()
+		TitleBar.MinButton = BarButton(Components.Assets.Min, UDim2.new(1, -66, 0, 3), TitleBar.Frame, function()
 			Library.Window:Minimize()
 			if not Close_ImageButton.Visible then Close_ImageButton.Visible = true end
 		end)
@@ -2304,10 +2338,15 @@ Components.Window = (function()
 			Size = Config.Size,
 			CurrentPos = 0,
 			TabWidth = 0,
-			Position = UDim2.fromOffset(
-				Camera.ViewportSize.X / 2 - Config.Size.X.Offset / 2,
-				Camera.ViewportSize.Y / 2 - Config.Size.Y.Offset / 2
-			),
+			Position = (function()
+				local vs = Camera.ViewportSize
+				local sx = (Config.Size and Config.Size.X.Offset) or 580
+				local sy = (Config.Size and Config.Size.Y.Offset) or 420
+				return UDim2.fromOffset(
+					math.max(0, (vs.X - sx) / 2),
+					math.max(0, (vs.Y - sy) / 2)
+				)
+			end)(),
 		}
 
 		local Dragging, DragInput, MousePos, StartPos = false
@@ -2315,7 +2354,16 @@ Components.Window = (function()
 		local MinimizeNotif = false
 
 		Window.AcrylicPaint = Acrylic.AcrylicPaint()
-		Window.TabWidth = Config.TabWidth
+		Window.TabWidth = Config.TabWidth or 160
+		Window.SearchBarEnabled = Config.SearchBar == true
+
+		-- Float icon override
+		if Config.FloatIcon and Library._FloatButton then
+			local resolved = Library:GetIcon(Config.FloatIcon) or Config.FloatIcon
+			if resolved then
+				Library._FloatButton.Image = resolved
+			end
+		end
 
 		local Selector = New("Frame", {
 			Size = UDim2.fromOffset(4, 0),
@@ -2352,14 +2400,79 @@ Components.Window = (function()
 		})
 
 		local TabFrame = New("Frame", {
-			Size = UDim2.new(0, Window.TabWidth, 1, -66),
-			Position = UDim2.new(0, 12, 0, 54),
+			Size = UDim2.new(0, Window.TabWidth, 1, -54),
+			Position = UDim2.new(0, 12, 0, 42),
 			BackgroundTransparency = 1,
 			ClipsDescendants = true,
 		}, {
 			Window.TabHolder,
 			Selector,
 		})
+
+		-- SearchBar (left column top)
+		if Window.SearchBarEnabled then
+			local SearchHolder = New("Frame", {
+				Size = UDim2.new(1, 0, 0, 30),
+				Position = UDim2.fromOffset(0, 0),
+				BackgroundTransparency = 1,
+				Parent = TabFrame,
+				ZIndex = 5,
+			})
+			local SearchBox = New("TextBox", {
+				Size = UDim2.new(1, -4, 1, 0),
+				Position = UDim2.fromOffset(2, 0),
+				BackgroundTransparency = 0.85,
+				Text = "",
+				PlaceholderText = "Search",
+				PlaceholderColor3 = Color3.fromRGB(140, 130, 160),
+				TextColor3 = Color3.fromRGB(240, 240, 255),
+				TextSize = 12,
+				FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
+				ClearTextOnFocus = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = SearchHolder,
+				ThemeTag = {
+					BackgroundColor3 = "DropdownFrame",
+					TextColor3 = "Text",
+				},
+			}, {
+				New("UICorner", { CornerRadius = UDim.new(0, 6) }),
+				New("UIPadding", { PaddingLeft = UDim.new(0, 28), PaddingRight = UDim.new(0, 8) }),
+				New("UIStroke", {
+					Transparency = 0.6,
+					ThemeTag = { Color = "InElementBorder" },
+				}),
+				New("ImageLabel", {
+					Image = Library:GetIcon("search") or "rbxassetid://10734943674",
+					Size = UDim2.fromOffset(14, 14),
+					Position = UDim2.new(0, 8, 0.5, 0),
+					AnchorPoint = Vector2.new(0, 0.5),
+					BackgroundTransparency = 1,
+					ThemeTag = { ImageColor3 = "SubText" },
+				}),
+			})
+			-- shift tab list down
+			Window.TabHolder.Position = UDim2.fromOffset(0, 34)
+			Window.TabHolder.Size = UDim2.new(1, 0, 1, -34)
+
+			local function ApplySearch(query)
+				query = string.lower(tostring(query or ""))
+				for _, tabObj in pairs(Components.Tab.Tabs or {}) do
+					if tabObj.Frame then
+						if query == "" then
+							tabObj.Frame.Visible = true
+						else
+							local name = string.lower(tabObj.Name or "")
+							tabObj.Frame.Visible = string.find(name, query, 1, true) ~= nil
+						end
+					end
+				end
+			end
+			SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+				ApplySearch(SearchBox.Text)
+			end)
+			Window.SearchBox = SearchBox
+		end
 
 		Window.TabDisplay = New("TextLabel", {
 			RichText = true,
@@ -2370,7 +2483,7 @@ Components.Window = (function()
 			TextXAlignment = "Left",
 			TextYAlignment = "Center",
 			Size = UDim2.new(1, -16, 0, 28),
-			Position = UDim2.fromOffset(Window.TabWidth + 26, 56),
+			Position = UDim2.fromOffset(Window.TabWidth + 26, 44),
 			BackgroundTransparency = 1,
 			ThemeTag = {
 				TextColor3 = "Text",
@@ -2388,8 +2501,8 @@ Components.Window = (function()
 		})
 
 		Window.ContainerCanvas = New("Frame", {
-			Size = UDim2.new(1, -Window.TabWidth - 32, 1, -102),
-			Position = UDim2.fromOffset(Window.TabWidth + 26, 90),
+			Size = UDim2.new(1, -Window.TabWidth - 32, 1, -86),
+			Position = UDim2.fromOffset(Window.TabWidth + 26, 74),
 			BackgroundTransparency = 1,
 		}, {
 			Window.ContainerAnim,
@@ -2577,8 +2690,14 @@ Components.Window = (function()
 			end
 		end)
 
+		local _thUpdating = false
 		Creator.AddSignal(Window.TabHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+			if _thUpdating then return end
+			_thUpdating = true
 			Window.TabHolder.CanvasSize = UDim2.new(0, 0, 0, Window.TabHolder.UIListLayout.AbsoluteContentSize.Y)
+			task.defer(function()
+				_thUpdating = false
+			end)
 		end)
 
 		function Window:Minimize()
@@ -3306,6 +3425,83 @@ ElementsTable.Paragraph = (function()
 
 	return Paragraph
 end)()
+
+ElementsTable.DiscordInvite = (function()
+	local Element = {}
+	Element.__index = Element
+	Element.__type = "DiscordInvite"
+
+	function Element:New(Config)
+		Config = type(Config) == "table" and Config or {}
+		local Title = Config.Title or "Discord"
+		local Desc = Config.Desc or Config.Description or "Join our community"
+		local Invite = Config.Invite or "https://discord.gg/"
+		local Logo = Config.Logo
+		local ButtonText = Config.Join or Config.ButtonText or "Join"
+
+		local Frame = Components.Element(Title, Desc, self.Container, true, Config)
+		Frame.DescLabel.Size = UDim2.new(1, -90, 0, 14)
+
+		if Logo then
+			local resolved = Library:GetIcon(Logo) or Logo
+			New("ImageLabel", {
+				Size = UDim2.fromOffset(28, 28),
+				Position = UDim2.new(0, 10, 0.5, 0),
+				AnchorPoint = Vector2.new(0, 0.5),
+				BackgroundTransparency = 1,
+				Image = resolved,
+				Parent = Frame.Frame,
+			}, {
+				New("UICorner", { CornerRadius = UDim.new(0, 6) }),
+			})
+			Frame.LabelHolder.Position = UDim2.fromOffset(46, 0)
+			Frame.LabelHolder.Size = UDim2.new(1, -130, 0, 0)
+		end
+
+		local JoinBtn = New("TextButton", {
+			Size = UDim2.fromOffset(64, 26),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Text = ButtonText,
+			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+			TextSize = 12,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			AutoButtonColor = false,
+			Parent = Frame.Frame,
+			ThemeTag = {
+				BackgroundColor3 = "Accent",
+			},
+		}, {
+			New("UICorner", { CornerRadius = UDim.new(0, 6) }),
+		})
+
+		Creator.AddSignal(JoinBtn.MouseButton1Click, function()
+			local url = Invite
+			if not string.find(url, "http", 1, true) then
+				url = "https://discord.gg/" .. tostring(url)
+			end
+			pcall(function()
+				if setclipboard then setclipboard(url) end
+			end)
+			pcall(function()
+				Library:Notify({
+					Title = "Discord",
+					Content = "Invite copied!",
+					SubContent = tostring(url),
+					Duration = 3,
+				})
+			end)
+			if Config.Callback then
+				Library:SafeCallback(Config.Callback, url)
+			end
+		end)
+
+		return Frame
+	end
+
+	return Element
+end)()
+
 ElementsTable.Slider = (function()
 	local Element = {}
 	Element.__index = Element
@@ -5076,17 +5272,57 @@ local Icons = {
 	["lucide-webhook"] = "rbxassetid://17320556264",
 }
 function Library:GetIcon(Name)
-	if Name ~= nil then
-		if string.find(Name, "rbxassetid://") then
-			return Name
-		end
-		local AssetId = tonumber(Name)
-		if AssetId then
-			return "rbxassetid://" .. AssetId
-		end
-		if Icons["lucide-" .. Name] then
-			return Icons["lucide-" .. Name]
-		end
+	if Name == nil then return nil end
+	Name = tostring(Name)
+	-- already asset
+	if string.find(Name, "rbxassetid://", 1, true) or string.find(Name, "rbxasset://", 1, true) then
+		return Name
+	end
+	-- raw numeric id
+	local AssetId = tonumber(Name)
+	if AssetId then
+		return "rbxassetid://" .. AssetId
+	end
+	-- http/https URL -> download via request if possible, else return URL (some executors load URLs on Image)
+	if string.find(Name, "http://", 1, true) == 1 or string.find(Name, "https://", 1, true) == 1 then
+		local ok, data = pcall(function()
+			if isfolder and not isfolder("GenesisXYZ_Assets") then
+				makefolder("GenesisXYZ_Assets")
+			end
+			local hash = tostring(#Name) .. "_" .. string.gsub(Name, "[^%w]", ""):sub(-24)
+			local path = "GenesisXYZ_Assets/" .. hash .. ".png"
+			if isfile and isfile(path) then
+				return getcustomasset and getcustomasset(path) or path
+			end
+			local body
+			if request or http_request or (syn and syn.request) then
+				local req = request or http_request or syn.request
+				local res = req({ Url = Name, Method = "GET" })
+				body = res and (res.Body or res.body)
+			elseif game.HttpGet then
+				body = game:HttpGet(Name)
+			end
+			if body and writefile then
+				writefile(path, body)
+				if getcustomasset then
+					return getcustomasset(path)
+				end
+			end
+			return Name -- fallback: some clients accept direct URL
+		end)
+		if ok and data then return data end
+		return Name
+	end
+	-- lucide name (with or without prefix)
+	local key = Name
+	if not string.find(key, "lucide-", 1, true) then
+		key = "lucide-" .. Name
+	end
+	if Icons[key] then
+		return Icons[key]
+	end
+	if Icons[Name] then
+		return Icons[Name]
 	end
 	return nil
 end
@@ -5564,17 +5800,39 @@ function Library:CreateWindow(Config)
 		Acrylic.init()
 	end
 
+	-- mobile-friendly default size
+	local defaultSize = UDim2.fromOffset(580, 420)
+	if Camera and Camera.ViewportSize.X < 700 then
+		defaultSize = UDim2.fromOffset(math.min(Camera.ViewportSize.X - 24, 520), math.min(Camera.ViewportSize.Y - 40, 380))
+	end
+
 	local Window = Components.Window({
 		Parent = GUI,
-		Size = Config.Size,
+		Size = Config.Size or defaultSize,
 		Title = Config.Title,
 		SubTitle = Config.SubTitle,
-		TabWidth = Config.TabWidth,
+		TabWidth = Config.TabWidth or 160,
+		SearchBar = Config.SearchBar == true,
+		FloatIcon = Config.FloatIcon,
 	})
 
 	Library.Window = Window
-	InterfaceManager:SetTheme(Config.Theme)
-	Library:SetTheme(Config.Theme)
+	InterfaceManager:SetTheme(Config.Theme or "GenesisX")
+	Library:SetTheme(Config.Theme or "GenesisX")
+
+	-- keep centered on viewport resize (mobile rotate / PC resize)
+	pcall(function()
+		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			if Window and Window.Root and not Window.Maximized and not Window.Minimized then
+				local sz = Window.Root.AbsoluteSize
+				local vs = Camera.ViewportSize
+				Window.Root.Position = UDim2.fromOffset(
+					math.max(0, (vs.X - sz.X) / 2),
+					math.max(0, (vs.Y - sz.Y) / 2)
+				)
+			end
+		end)
+	end)
 
 	return Window
 end
@@ -5615,6 +5873,68 @@ function Library:ToggleTransparency(Value)
 	if Library.Window then
 		Library.Window.AcrylicPaint.Frame.Background.BackgroundTransparency = Value and 0.35 or 0
 	end
+end
+
+
+function Library:SetFloatIcon(icon)
+	local btn = Library._FloatButton
+	if not btn then return end
+	local resolved = Library:GetIcon(icon) or icon
+	if resolved then
+		btn.Image = resolved
+	end
+end
+
+
+function Library:SetBackground(Image, Configs)
+	Configs = Configs or {}
+	local Window = Library.Window
+	if not Window or not Window.Root then return end
+	local root = Window.Root
+	local existing = root:FindFirstChild("GenesisBackground")
+	if existing then existing:Destroy() end
+
+	local resolved = Library:GetIcon(Image) or Image
+	if not resolved or resolved == "" then return end
+
+	local bg = New("ImageLabel", {
+		Name = "GenesisBackground",
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0, 0),
+		BackgroundTransparency = 1,
+		Image = resolved,
+		ScaleType = Enum.ScaleType.Crop,
+		ImageTransparency = Configs.ImageTransparency or 0.15,
+		ZIndex = 0,
+		Parent = root,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+
+	local overlayT = 0.45
+	if Configs.Darkness ~= nil then
+		overlayT = 1 - math.clamp(tonumber(Configs.Darkness) or 0.55, 0, 1)
+	elseif Configs.Transparency ~= nil then
+		overlayT = math.clamp(tonumber(Configs.Transparency) or 0.45, 0, 1)
+	end
+
+	New("Frame", {
+		Name = "BgOverlay",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(12, 8, 20),
+		BackgroundTransparency = overlayT,
+		ZIndex = 1,
+		Parent = bg,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+end
+
+function Library:RemoveBackground()
+	local Window = Library.Window
+	if not Window or not Window.Root then return end
+	local existing = Window.Root:FindFirstChild("GenesisBackground")
+	if existing then existing:Destroy() end
 end
 
 function Library:Notify(Config)
