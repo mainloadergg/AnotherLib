@@ -3243,11 +3243,13 @@ ElementsTable.Dropdown = (function()
 		})
 
 		local DropdownListLayout = New("UIListLayout", {
-			Padding = UDim.new(0, 4),
+			Padding = UDim.new(0, 5),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
-		-- Modal dropdown — solid panel, header bar, icon close (Genesis style)
+		-- Fixed-size modal (does not grow with option count)
+		local MODAL_W, MODAL_H = 300, 340
+
 		local ModalRoot = New("TextButton", {
 			Name = "DropdownModal",
 			Size = UDim2.fromScale(1, 1),
@@ -3263,47 +3265,30 @@ ElementsTable.Dropdown = (function()
 		local ModalPanel = New("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(290, 320),
-			BackgroundTransparency = 0.02,
+			Size = UDim2.fromOffset(MODAL_W, MODAL_H),
+			BackgroundTransparency = 0.12,
 			ZIndex = 201,
 			Parent = ModalRoot,
+			ClipsDescendants = true,
 			ThemeTag = {
 				BackgroundColor3 = "Dialog",
 			},
 		}, {
-			New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+			New("UICorner", { CornerRadius = UDim.new(0, 12) }),
 			New("UIStroke", {
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-				Transparency = 0.35,
-				Thickness = 1.2,
+				Transparency = 0.4,
+				Thickness = 1,
 				ThemeTag = { Color = "DropdownBorder" },
-			}),
-			New("UISizeConstraint", {
-				MinSize = Vector2.new(240, 180),
-				MaxSize = Vector2.new(380, 440),
 			}),
 		})
 
-		-- Header strip
+		-- Single clean header (no double color blocks)
 		local ModalHeader = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 44),
-			BackgroundTransparency = 0.35,
+			Size = UDim2.new(1, 0, 0, 46),
+			BackgroundTransparency = 1,
 			ZIndex = 202,
 			Parent = ModalPanel,
-			ThemeTag = {
-				BackgroundColor3 = "Element",
-			},
-		}, {
-			New("UICorner", { CornerRadius = UDim.new(0, 10) }),
-			-- square bottom corners of header
-			New("Frame", {
-				Size = UDim2.new(1, 0, 0, 12),
-				Position = UDim2.new(0, 0, 1, -12),
-				BorderSizePixel = 0,
-				BackgroundTransparency = 0,
-				ZIndex = 202,
-				ThemeTag = { BackgroundColor3 = "Element" },
-			}),
 		})
 
 		local ModalTitle = New("TextLabel", {
@@ -3314,7 +3299,7 @@ ElementsTable.Dropdown = (function()
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, -52, 1, 0),
-			Position = UDim2.fromOffset(14, 0),
+			Position = UDim2.fromOffset(16, 0),
 			ZIndex = 203,
 			Parent = ModalHeader,
 			ThemeTag = { TextColor3 = "Text" },
@@ -3322,8 +3307,8 @@ ElementsTable.Dropdown = (function()
 
 		local ModalClose = New("ImageButton", {
 			Image = Library:GetIcon("x") or "rbxassetid://10747384394",
-			Size = UDim2.fromOffset(18, 18),
-			Position = UDim2.new(1, -32, 0.5, 0),
+			Size = UDim2.fromOffset(16, 16),
+			Position = UDim2.new(1, -28, 0.5, 0),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundTransparency = 1,
 			AutoButtonColor = false,
@@ -3332,10 +3317,10 @@ ElementsTable.Dropdown = (function()
 			ThemeTag = { ImageColor3 = "SubText" },
 		})
 
-		-- Divider under header
+		-- Clean separator line under header
 		local ModalDivider = New("Frame", {
-			Size = UDim2.new(1, -20, 0, 1),
-			Position = UDim2.new(0.5, 0, 0, 44),
+			Size = UDim2.new(1, -24, 0, 1),
+			Position = UDim2.new(0.5, 0, 0, 46),
 			AnchorPoint = Vector2.new(0.5, 0),
 			BackgroundTransparency = 0.55,
 			BorderSizePixel = 0,
@@ -3345,18 +3330,19 @@ ElementsTable.Dropdown = (function()
 		})
 
 		local DropdownScrollFrame = New("ScrollingFrame", {
-			Size = UDim2.new(1, -12, 1, -56),
-			Position = UDim2.fromOffset(6, 50),
+			Size = UDim2.new(1, -12, 1, -58),
+			Position = UDim2.fromOffset(6, 52),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ScrollBarThickness = 4,
-			ScrollBarImageTransparency = 0.65,
+			ScrollBarImageTransparency = 0.55,
 			ScrollBarImageColor3 = Color3.fromRGB(160, 120, 255),
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollingEnabled = true,
 			Active = true,
+			ElasticBehavior = Enum.ElasticBehavior.Never,
 			ZIndex = 202,
 			Parent = ModalPanel,
 			BottomImage = "rbxassetid://6889812791",
@@ -3365,10 +3351,10 @@ ElementsTable.Dropdown = (function()
 		}, {
 			DropdownListLayout,
 			New("UIPadding", {
-				PaddingBottom = UDim.new(0, 10),
-				PaddingTop = UDim.new(0, 4),
+				PaddingBottom = UDim.new(0, 12),
+				PaddingTop = UDim.new(0, 6),
 				PaddingLeft = UDim.new(0, 4),
-				PaddingRight = UDim.new(0, 4),
+				PaddingRight = UDim.new(0, 6),
 			}),
 		})
 
@@ -3377,13 +3363,12 @@ ElementsTable.Dropdown = (function()
 		table.insert(Library.OpenFrames, ModalRoot)
 
 		local function RecalculateListSize()
-			local count = #Dropdown.Values
-			local h = math.clamp(count * 38 + 64, 190, 420)
-			ModalPanel.Size = UDim2.fromOffset(290, h)
+			-- fixed size always
+			ModalPanel.Size = UDim2.fromOffset(MODAL_W, MODAL_H)
 		end
 
 		local function RecalculateCanvasSize()
-			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y + 12)
+			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y + 16)
 		end
 
 		local function RecalculateListPosition()
@@ -3404,22 +3389,13 @@ ElementsTable.Dropdown = (function()
 			end
 		end)
 
-		-- IMPORTANT: do NOT disable page ScrollingEnabled — that was locking scroll forever
 		function Dropdown:Open()
 			Dropdown.Opened = true
-			RecalculateListSize()
 			ModalTitle.Text = tostring(Config.Title or "Select")
+			ModalPanel.Size = UDim2.fromOffset(MODAL_W, MODAL_H)
 			ModalRoot.Visible = true
 			ModalRoot.BackgroundTransparency = 1
-			local targetH = math.clamp(#Dropdown.Values * 38 + 64, 190, 420)
-			local targetW = 290
-			ModalPanel.Size = UDim2.fromOffset(targetW, 48)
-			TweenService:Create(ModalRoot, TweenInfo.new(0.18), { BackgroundTransparency = 0.4 }):Play()
-			TweenService:Create(
-				ModalPanel,
-				TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-				{ Size = UDim2.fromOffset(targetW, targetH) }
-			):Play()
+			TweenService:Create(ModalRoot, TweenInfo.new(0.18), { BackgroundTransparency = 0.42 }):Play()
 		end
 
 		function Dropdown:Close()
@@ -3513,10 +3489,11 @@ ElementsTable.Dropdown = (function()
 				})
 
 				local Button = New("TextButton", {
-					Size = UDim2.new(1, -5, 0, 32),
+					Size = UDim2.new(1, -5, 0, 34),
 					BackgroundTransparency = 1,
-					ZIndex = 23,
+					ZIndex = 203,
 					Text = "",
+					AutoButtonColor = false,
 					Parent = DropdownScrollFrame,
 					ThemeTag = {
 						BackgroundColor3 = "DropdownOption",
@@ -3573,37 +3550,58 @@ ElementsTable.Dropdown = (function()
 					SetSelTransparency(Selected and 0 or 1)
 				end
 
-				ButtonLabel.InputBegan:Connect(function(Input)
-					if
-						Input.UserInputType == Enum.UserInputType.MouseButton1
-						or Input.UserInputType == Enum.UserInputType.Touch
-					then
-						local Try = not Selected
+				-- Tap vs scroll: only select if CanvasPosition barely moved
+				local downScrollY = 0
+				local pressed = false
+				Button.Active = true
+				Button.AutoButtonColor = false
 
-						if Dropdown:GetActiveValues() == 1 and not Try and not Config.AllowNull then
-						else
-							if Config.Multi then
-								Selected = Try
-								Dropdown.Value[Value] = Selected and true or nil
-							else
-								Selected = Try
-								Dropdown.Value = Selected and Value or nil
-
-								for _, OtherButton in next, Buttons do
-									OtherButton:UpdateButton()
-								end
-							end
-
-							Table:UpdateButton()
-							Dropdown:Display()
-
-							Library:SafeCallback(Dropdown.Callback, Dropdown.Value)
-							Library:SafeCallback(Dropdown.Changed, Dropdown.Value)
-							if not Config.Multi then
-								Dropdown:Close()
-							end
+				local function DoSelect()
+					local Try = not Selected
+					if Dropdown:GetActiveValues() == 1 and not Try and not Config.AllowNull then
+						return
+					end
+					if Config.Multi then
+						Selected = Try
+						Dropdown.Value[Value] = Selected and true or nil
+					else
+						Selected = Try
+						Dropdown.Value = Selected and Value or nil
+						for _, OtherButton in next, Buttons do
+							OtherButton:UpdateButton()
 						end
 					end
+					Table:UpdateButton()
+					Dropdown:Display()
+					Library:SafeCallback(Dropdown.Callback, Dropdown.Value)
+					Library:SafeCallback(Dropdown.Changed, Dropdown.Value)
+					if not Config.Multi then
+						Dropdown:Close()
+					end
+				end
+
+				Button.InputBegan:Connect(function(Input)
+					if Input.UserInputType == Enum.UserInputType.MouseButton1
+						or Input.UserInputType == Enum.UserInputType.Touch
+					then
+						pressed = true
+						downScrollY = DropdownScrollFrame.CanvasPosition.Y
+					end
+				end)
+
+				Button.InputEnded:Connect(function(Input)
+					if not pressed then return end
+					if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+						and Input.UserInputType ~= Enum.UserInputType.Touch
+					then
+						return
+					end
+					pressed = false
+					local moved = math.abs(DropdownScrollFrame.CanvasPosition.Y - downScrollY)
+					if moved > 6 then
+						return -- user was scrolling the list
+					end
+					DoSelect()
 				end)
 
 				Table:UpdateButton()
