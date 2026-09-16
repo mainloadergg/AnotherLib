@@ -3248,7 +3248,7 @@ ElementsTable.Dropdown = (function()
 		})
 
 		-- Fixed-size modal (does not grow with option count)
-		local MODAL_W, MODAL_H = 300, 340
+		local MODAL_W, MODAL_H = 320, 360
 
 		local ModalRoot = New("TextButton", {
 			Name = "DropdownModal",
@@ -3330,12 +3330,12 @@ ElementsTable.Dropdown = (function()
 		})
 
 		local DropdownScrollFrame = New("ScrollingFrame", {
-			Size = UDim2.new(1, -12, 1, -58),
+			Size = UDim2.new(1, -10, 1, -58),
 			Position = UDim2.fromOffset(6, 52),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			ScrollBarThickness = 4,
-			ScrollBarImageTransparency = 0.55,
+			ScrollBarThickness = 8,
+			ScrollBarImageTransparency = 0.35,
 			ScrollBarImageColor3 = Color3.fromRGB(160, 120, 255),
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
@@ -3550,9 +3550,12 @@ ElementsTable.Dropdown = (function()
 					SetSelTransparency(Selected and 0 or 1)
 				end
 
-				-- Tap vs scroll: only select if CanvasPosition barely moved
-				local downScrollY = 0
+				-- Tap vs scroll (slider-style): only pure click+release counts
 				local pressed = false
+				local startPos = nil
+				local downScrollY = 0
+				local dragged = false
+				local MOVE_THRESHOLD = 12 -- studs/px of finger movement cancels select
 				Button.Active = true
 				Button.AutoButtonColor = false
 
@@ -3585,7 +3588,26 @@ ElementsTable.Dropdown = (function()
 						or Input.UserInputType == Enum.UserInputType.Touch
 					then
 						pressed = true
+						dragged = false
+						startPos = Input.Position
 						downScrollY = DropdownScrollFrame.CanvasPosition.Y
+					end
+				end)
+
+				-- cancel as soon as finger moves (any direction) or list scrolls
+				local moveConn
+				moveConn = UserInputService.InputChanged:Connect(function(Input)
+					if not pressed or not startPos then return end
+					if Input.UserInputType ~= Enum.UserInputType.MouseMovement
+						and Input.UserInputType ~= Enum.UserInputType.Touch
+					then
+						return
+					end
+					local dx = math.abs(Input.Position.X - startPos.X)
+					local dy = math.abs(Input.Position.Y - startPos.Y)
+					local scrollDy = math.abs(DropdownScrollFrame.CanvasPosition.Y - downScrollY)
+					if dx > MOVE_THRESHOLD or dy > MOVE_THRESHOLD or scrollDy > 4 then
+						dragged = true
 					end
 				end)
 
@@ -3596,12 +3618,29 @@ ElementsTable.Dropdown = (function()
 					then
 						return
 					end
+					local wasDrag = dragged
+					if startPos then
+						local dx = math.abs(Input.Position.X - startPos.X)
+						local dy = math.abs(Input.Position.Y - startPos.Y)
+						if dx > MOVE_THRESHOLD or dy > MOVE_THRESHOLD then
+							wasDrag = true
+						end
+					end
+					local scrollDy = math.abs(DropdownScrollFrame.CanvasPosition.Y - downScrollY)
+					if scrollDy > 4 then
+						wasDrag = true
+					end
 					pressed = false
-					local moved = math.abs(DropdownScrollFrame.CanvasPosition.Y - downScrollY)
-					if moved > 6 then
-						return -- user was scrolling the list
+					startPos = nil
+					dragged = false
+					if wasDrag then
+						return -- scroll / swipe — ignore
 					end
 					DoSelect()
+				end)
+
+				Button.Destroying:Connect(function()
+					if moveConn then moveConn:Disconnect() end
 				end)
 
 				Table:UpdateButton()
