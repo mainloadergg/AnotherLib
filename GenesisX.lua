@@ -1592,11 +1592,15 @@ Components.Tab = (function()
 			BottomImage = "rbxassetid://6889812791",
 			MidImage = "rbxassetid://6889812721",
 			TopImage = "rbxassetid://6276641225",
-			ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255),
-			ScrollBarImageTransparency = 0.95,
-			ScrollBarThickness = 3,
+			ScrollBarImageColor3 = Color3.fromRGB(180, 140, 255),
+			ScrollBarImageTransparency = 0.85,
+			ScrollBarThickness = 4,
 			BorderSizePixel = 0,
 			CanvasSize = UDim2.fromScale(0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollingEnabled = true,
+			Active = true,
+			ElasticBehavior = Enum.ElasticBehavior.Never,
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 		}, {
 			ContainerLayout,
@@ -1639,19 +1643,21 @@ Components.Tab = (function()
 		Tab.Container = Tab.ContainerFrame
 		Tab.ScrollFrame = Tab.Container
 
-		-- TwoSides: independent scroll columns (Left / Right do not share canvas)
+		-- TwoSides: independent columns (NOT nested inside another ScrollingFrame)
 		if Library.Window and Library.Window.TwoSides then
+			-- hide the original single scroller — it steals input when nested
 			Tab.ContainerFrame.ScrollingEnabled = false
-			Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-			Tab.ContainerFrame.ScrollBarThickness = 0
 			Tab.ContainerFrame.Active = false
-			Tab.ContainerFrame.ClipsDescendants = true
+			Tab.ContainerFrame.Visible = false
+			Tab.ContainerFrame.ScrollBarThickness = 0
 
 			local Holder = New("Frame", {
+				Name = "TwoSidesHolder",
 				Size = UDim2.fromScale(1, 1),
 				BackgroundTransparency = 1,
 				Active = false,
-				Parent = Tab.ContainerFrame,
+				ClipsDescendants = true,
+				Parent = Tab.ContainerFrame.Parent, -- ContainerHolder / Canvas, NOT the ScrollingFrame
 			}, {
 				New("UIListLayout", {
 					FillDirection = Enum.FillDirection.Horizontal,
@@ -1659,6 +1665,11 @@ Components.Tab = (function()
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				}),
 			})
+			-- keep visibility in sync with the tab container
+			Tab.ContainerFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+				Holder.Visible = Tab.ContainerFrame.Visible
+			end)
+			Holder.Visible = Tab.ContainerFrame.Visible
 
 			local function MakeSide(order)
 				local colLayout = New("UIListLayout", {
@@ -1666,18 +1677,21 @@ Components.Tab = (function()
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				})
 				local scroll = New("ScrollingFrame", {
+					Name = order == 1 and "SideLeft" or "SideRight",
 					Size = UDim2.new(0.5, -4, 1, 0),
 					BackgroundTransparency = 1,
 					BorderSizePixel = 0,
 					ScrollBarThickness = 4,
-					ScrollBarImageTransparency = 0.75,
+					ScrollBarImageTransparency = 0.7,
+					ScrollBarImageColor3 = Color3.fromRGB(180, 140, 255),
 					ScrollingDirection = Enum.ScrollingDirection.Y,
 					CanvasSize = UDim2.new(0, 0, 0, 0),
-					AutomaticCanvasSize = Enum.AutomaticSize.None,
+					AutomaticCanvasSize = Enum.AutomaticSize.Y,
 					ScrollingEnabled = true,
 					Active = true,
+					Selectable = true,
 					ClipsDescendants = true,
-					ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
+					ElasticBehavior = Enum.ElasticBehavior.Never,
 					LayoutOrder = order,
 					Parent = Holder,
 					BottomImage = "rbxassetid://6889812791",
@@ -1689,18 +1703,17 @@ Components.Tab = (function()
 						PaddingRight = UDim.new(0, 8),
 						PaddingLeft = UDim.new(0, 2),
 						PaddingTop = UDim.new(0, 4),
-						PaddingBottom = UDim.new(0, 16),
+						PaddingBottom = UDim.new(0, 20),
 					}),
 				})
+				-- belt-and-suspenders canvas refresh
 				local function refreshCanvas()
-					local h = colLayout.AbsoluteContentSize.Y + 40
-					if scroll.CanvasSize.Y.Offset ~= h then
-						scroll.CanvasSize = UDim2.new(0, 0, 0, h)
-					end
+					local h = math.max(colLayout.AbsoluteContentSize.Y + 28, 0)
+					scroll.CanvasSize = UDim2.new(0, 0, 0, h)
 				end
 				colLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 					task.defer(refreshCanvas)
-				end)
+			end)
 				task.defer(refreshCanvas)
 				return scroll
 			end
@@ -1709,8 +1722,9 @@ Components.Tab = (function()
 				Left = MakeSide(1),
 				Right = MakeSide(2),
 			}
+			Tab._SidesHolder = Holder
 			Tab.Container = Tab._Sides.Left
-			Tab.ScrollFrame = Tab.ContainerFrame
+			Tab.ScrollFrame = Tab._Sides.Left
 		end
 
 		function Tab:AddSection(SectionTitle, Icon)
@@ -3233,11 +3247,10 @@ ElementsTable.Dropdown = (function()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
-		-- ===== Modal dropdown (Genesis-style): dim overlay + centered panel =====
+		-- Modal dropdown — solid panel, header bar, icon close (Genesis style)
 		local ModalRoot = New("TextButton", {
 			Name = "DropdownModal",
 			Size = UDim2.fromScale(1, 1),
-			Position = UDim2.fromScale(0, 0),
 			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
 			BackgroundTransparency = 1,
 			Text = "",
@@ -3250,62 +3263,100 @@ ElementsTable.Dropdown = (function()
 		local ModalPanel = New("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.new(0, 280, 0, 320),
-			BackgroundTransparency = 0.05,
+			Size = UDim2.fromOffset(290, 320),
+			BackgroundTransparency = 0.02,
 			ZIndex = 201,
 			Parent = ModalRoot,
 			ThemeTag = {
-				BackgroundColor3 = "DropdownHolder",
+				BackgroundColor3 = "Dialog",
 			},
 		}, {
 			New("UICorner", { CornerRadius = UDim.new(0, 10) }),
 			New("UIStroke", {
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-				Transparency = 0.4,
+				Transparency = 0.35,
+				Thickness = 1.2,
 				ThemeTag = { Color = "DropdownBorder" },
 			}),
 			New("UISizeConstraint", {
-				MinSize = Vector2.new(220, 160),
-				MaxSize = Vector2.new(360, 420),
+				MinSize = Vector2.new(240, 180),
+				MaxSize = Vector2.new(380, 440),
+			}),
+		})
+
+		-- Header strip
+		local ModalHeader = New("Frame", {
+			Size = UDim2.new(1, 0, 0, 44),
+			BackgroundTransparency = 0.35,
+			ZIndex = 202,
+			Parent = ModalPanel,
+			ThemeTag = {
+				BackgroundColor3 = "Element",
+			},
+		}, {
+			New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+			-- square bottom corners of header
+			New("Frame", {
+				Size = UDim2.new(1, 0, 0, 12),
+				Position = UDim2.new(0, 0, 1, -12),
+				BorderSizePixel = 0,
+				BackgroundTransparency = 0,
+				ZIndex = 202,
+				ThemeTag = { BackgroundColor3 = "Element" },
 			}),
 		})
 
 		local ModalTitle = New("TextLabel", {
 			Text = tostring(Config.Title or "Select"),
 			FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-			TextSize = 16,
+			TextSize = 15,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, -48, 0, 28),
-			Position = UDim2.fromOffset(14, 10),
-			ZIndex = 202,
-			Parent = ModalPanel,
+			Size = UDim2.new(1, -52, 1, 0),
+			Position = UDim2.fromOffset(14, 0),
+			ZIndex = 203,
+			Parent = ModalHeader,
 			ThemeTag = { TextColor3 = "Text" },
 		})
 
-		local ModalClose = New("TextButton", {
-			Text = "×",
-			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-			TextSize = 22,
-			TextColor3 = Color3.fromRGB(220, 220, 230),
+		local ModalClose = New("ImageButton", {
+			Image = Library:GetIcon("x") or "rbxassetid://10747384394",
+			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.new(1, -32, 0.5, 0),
+			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(32, 32),
-			Position = UDim2.new(1, -36, 0, 6),
-			ZIndex = 202,
 			AutoButtonColor = false,
+			ZIndex = 203,
+			Parent = ModalHeader,
+			ThemeTag = { ImageColor3 = "SubText" },
+		})
+
+		-- Divider under header
+		local ModalDivider = New("Frame", {
+			Size = UDim2.new(1, -20, 0, 1),
+			Position = UDim2.new(0.5, 0, 0, 44),
+			AnchorPoint = Vector2.new(0.5, 0),
+			BackgroundTransparency = 0.55,
+			BorderSizePixel = 0,
+			ZIndex = 202,
 			Parent = ModalPanel,
+			ThemeTag = { BackgroundColor3 = "ElementBorder" },
 		})
 
 		local DropdownScrollFrame = New("ScrollingFrame", {
-			Size = UDim2.new(1, -16, 1, -52),
-			Position = UDim2.fromOffset(8, 44),
+			Size = UDim2.new(1, -12, 1, -56),
+			Position = UDim2.fromOffset(6, 50),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ScrollBarThickness = 4,
-			ScrollBarImageTransparency = 0.7,
+			ScrollBarImageTransparency = 0.65,
+			ScrollBarImageColor3 = Color3.fromRGB(160, 120, 255),
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollingEnabled = true,
+			Active = true,
 			ZIndex = 202,
 			Parent = ModalPanel,
 			BottomImage = "rbxassetid://6889812791",
@@ -3314,32 +3365,28 @@ ElementsTable.Dropdown = (function()
 		}, {
 			DropdownListLayout,
 			New("UIPadding", {
-				PaddingBottom = UDim.new(0, 8),
-				PaddingTop = UDim.new(0, 2),
+				PaddingBottom = UDim.new(0, 10),
+				PaddingTop = UDim.new(0, 4),
+				PaddingLeft = UDim.new(0, 4),
+				PaddingRight = UDim.new(0, 4),
 			}),
 		})
 
-		-- legacy aliases so rest of BuildDropdownList keeps working
 		local DropdownHolderCanvas = ModalRoot
 		local DropdownHolderFrame = ModalPanel
 		table.insert(Library.OpenFrames, ModalRoot)
 
 		local function RecalculateListSize()
 			local count = #Dropdown.Values
-			local h = math.clamp(count * 36 + 60, 180, 400)
-			local w = 280
-			if Library.Window and Library.Window.TwoSides then
-				w = 260
-			end
-			ModalPanel.Size = UDim2.fromOffset(w, h)
+			local h = math.clamp(count * 38 + 64, 190, 420)
+			ModalPanel.Size = UDim2.fromOffset(290, h)
 		end
 
 		local function RecalculateCanvasSize()
-			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y + 8)
+			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y + 12)
 		end
 
 		local function RecalculateListPosition()
-			-- modal is always centered — no-op (kept for compatibility)
 		end
 
 		Creator.AddSignal(ModalRoot.Activated, function()
@@ -3348,8 +3395,6 @@ ElementsTable.Dropdown = (function()
 		Creator.AddSignal(ModalClose.Activated, function()
 			Dropdown:Close()
 		end)
-		-- don't close when clicking the panel itself
-		Creator.AddSignal(ModalPanel.InputBegan, function() end)
 
 		Creator.AddSignal(DropdownInner.Activated, function()
 			if Dropdown.Opened then
@@ -3359,33 +3404,28 @@ ElementsTable.Dropdown = (function()
 			end
 		end)
 
-		local ScrollFrame = self.ScrollFrame
+		-- IMPORTANT: do NOT disable page ScrollingEnabled — that was locking scroll forever
 		function Dropdown:Open()
 			Dropdown.Opened = true
-			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
-				ScrollFrame.ScrollingEnabled = false
-			end
 			RecalculateListSize()
+			ModalTitle.Text = tostring(Config.Title or "Select")
 			ModalRoot.Visible = true
 			ModalRoot.BackgroundTransparency = 1
-			ModalPanel.Size = UDim2.fromOffset(ModalPanel.Size.X.Offset, 40)
-			TweenService:Create(ModalRoot, TweenInfo.new(0.2), { BackgroundTransparency = 0.45 }):Play()
-			local targetH = math.clamp(#Dropdown.Values * 36 + 60, 180, 400)
-			local targetW = ModalPanel.Size.X.Offset
+			local targetH = math.clamp(#Dropdown.Values * 38 + 64, 190, 420)
+			local targetW = 290
+			ModalPanel.Size = UDim2.fromOffset(targetW, 48)
+			TweenService:Create(ModalRoot, TweenInfo.new(0.18), { BackgroundTransparency = 0.4 }):Play()
 			TweenService:Create(
 				ModalPanel,
-				TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+				TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
 				{ Size = UDim2.fromOffset(targetW, targetH) }
 			):Play()
 		end
 
 		function Dropdown:Close()
 			Dropdown.Opened = false
-			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
-				ScrollFrame.ScrollingEnabled = true
-			end
-			TweenService:Create(ModalRoot, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
-			task.delay(0.16, function()
+			TweenService:Create(ModalRoot, TweenInfo.new(0.12), { BackgroundTransparency = 1 }):Play()
+			task.delay(0.13, function()
 				if not Dropdown.Opened then
 					ModalRoot.Visible = false
 				end
