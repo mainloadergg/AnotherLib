@@ -1312,6 +1312,11 @@ Components.Element = (function()
 			Parent = Parent,
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Text = "",
+			AutoButtonColor = false,
+			-- Active only when the whole row is clickable (Button etc.).
+			-- Inactive rows let ScrollingFrame receive mobile swipe.
+			Active = Hover and true or false,
+			Selectable = false,
 			LayoutOrder = 7,
 			ThemeTag = {
 				BackgroundColor3 = "Element",
@@ -1636,19 +1641,21 @@ Components.Tab = (function()
 
 		-- TwoSides: independent scroll columns (Left / Right do not share canvas)
 		if Library.Window and Library.Window.TwoSides then
-			-- parent scroller becomes a static split holder
 			Tab.ContainerFrame.ScrollingEnabled = false
 			Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 			Tab.ContainerFrame.ScrollBarThickness = 0
+			Tab.ContainerFrame.Active = false
+			Tab.ContainerFrame.ClipsDescendants = true
 
 			local Holder = New("Frame", {
 				Size = UDim2.fromScale(1, 1),
 				BackgroundTransparency = 1,
+				Active = false,
 				Parent = Tab.ContainerFrame,
 			}, {
 				New("UIListLayout", {
 					FillDirection = Enum.FillDirection.Horizontal,
-					Padding = UDim.new(0, 10),
+					Padding = UDim.new(0, 8),
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				}),
 			})
@@ -1659,14 +1666,18 @@ Components.Tab = (function()
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				})
 				local scroll = New("ScrollingFrame", {
-					Size = UDim2.new(0.5, -5, 1, 0),
+					Size = UDim2.new(0.5, -4, 1, 0),
 					BackgroundTransparency = 1,
 					BorderSizePixel = 0,
-					ScrollBarThickness = 3,
-					ScrollBarImageTransparency = 0.85,
+					ScrollBarThickness = 4,
+					ScrollBarImageTransparency = 0.8,
 					ScrollingDirection = Enum.ScrollingDirection.Y,
 					CanvasSize = UDim2.new(0, 0, 0, 0),
 					AutomaticCanvasSize = Enum.AutomaticSize.Y,
+					ScrollingEnabled = true,
+					Active = true,
+					ClipsDescendants = true,
+					ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
 					LayoutOrder = order,
 					Parent = Holder,
 					BottomImage = "rbxassetid://6889812791",
@@ -1675,10 +1686,10 @@ Components.Tab = (function()
 				}, {
 					colLayout,
 					New("UIPadding", {
-						PaddingRight = UDim.new(0, 6),
+						PaddingRight = UDim.new(0, 8),
 						PaddingLeft = UDim.new(0, 2),
 						PaddingTop = UDim.new(0, 4),
-						PaddingBottom = UDim.new(0, 10),
+						PaddingBottom = UDim.new(0, 12),
 					}),
 				})
 				return scroll
@@ -3124,16 +3135,23 @@ ElementsTable.Dropdown = (function()
 		Dropdown.Elements = DropdownFrame
 
 		local isTwoSides = Library.Window and Library.Window.TwoSides
-		-- TwoSides: narrower box + aggressive truncate; normal keeps wider box
-		local dropW = isTwoSides and 118 or 160
-		local titleShrink = isTwoSides and -130 or -170
-		DropdownFrame.DescLabel.Size = UDim2.new(1, titleShrink, 0, 14)
+		-- TwoSides: compact box; title wraps/truncates so it never runs into the value box
+		local dropW = isTwoSides and 108 or 160
+		local titleShrink = isTwoSides and -118 or -170
+		DropdownFrame.DescLabel.Size = UDim2.new(1, titleShrink, 0, isTwoSides and 28 or 14)
+		if isTwoSides then
+			DropdownFrame.DescLabel.TextWrapped = true
+		end
 		if DropdownFrame.TitleLabel then
 			DropdownFrame.TitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 			if isTwoSides then
 				DropdownFrame.TitleLabel.TextSize = 12
 				DropdownFrame.TitleLabel.TextWrapped = true
+				DropdownFrame.TitleLabel.Size = UDim2.new(1, 0, 0, 28)
 			end
+		end
+		if isTwoSides and DropdownFrame.LabelHolder then
+			DropdownFrame.LabelHolder.Size = UDim2.new(1, titleShrink, 0, 0)
 		end
 
 		local DropdownDisplay = New("TextLabel", {
@@ -3258,24 +3276,38 @@ ElementsTable.Dropdown = (function()
 		DropdownScrollFrame.ZIndex = 52
 		table.insert(Library.OpenFrames, DropdownHolderCanvas)
 
+		local _recalcPos = false
 		local function RecalculateListPosition()
-			local Add = 0
-			if Camera.ViewportSize.Y - DropdownInner.AbsolutePosition.Y < DropdownHolderCanvas.AbsoluteSize.Y - 5 then
-				Add = DropdownHolderCanvas.AbsoluteSize.Y
-				- 5
-				- (Camera.ViewportSize.Y - DropdownInner.AbsolutePosition.Y)
-					+ 40
+			if not Dropdown.Opened then
+				return
 			end
-			DropdownHolderCanvas.Position =
-				UDim2.fromOffset(DropdownInner.AbsolutePosition.X - 1, DropdownInner.AbsolutePosition.Y - 5 - Add)
+			if _recalcPos then
+				return
+			end
+			_recalcPos = true
+			local add = 0
+			local innerY = DropdownInner.AbsolutePosition.Y
+			local canvasH = DropdownHolderCanvas.AbsoluteSize.Y
+			if Camera.ViewportSize.Y - innerY < canvasH - 5 then
+				add = canvasH - 5 - (Camera.ViewportSize.Y - innerY) + 40
+			end
+			local nx = DropdownInner.AbsolutePosition.X - 1
+			local ny = innerY - 5 - add
+			local cur = DropdownHolderCanvas.Position
+			if cur.X.Offset ~= nx or cur.Y.Offset ~= ny then
+				DropdownHolderCanvas.Position = UDim2.fromOffset(nx, ny)
+			end
+			task.defer(function()
+				_recalcPos = false
+			end)
 		end
 
 		local ListSizeX = 0
 		local function RecalculateListSize()
 			if #Dropdown.Values > 10 then
-				DropdownHolderCanvas.Size = UDim2.fromOffset(ListSizeX, 392)
+				DropdownHolderCanvas.Size = UDim2.fromOffset(math.max(ListSizeX, 170), 392)
 			else
-				DropdownHolderCanvas.Size = UDim2.fromOffset(ListSizeX, DropdownListLayout.AbsoluteContentSize.Y + 10)
+				DropdownHolderCanvas.Size = UDim2.fromOffset(math.max(ListSizeX, 170), DropdownListLayout.AbsoluteContentSize.Y + 10)
 			end
 		end
 
@@ -3283,10 +3315,24 @@ ElementsTable.Dropdown = (function()
 			DropdownScrollFrame.CanvasSize = UDim2.fromOffset(0, DropdownListLayout.AbsoluteContentSize.Y)
 		end
 
-		RecalculateListPosition()
 		RecalculateListSize()
 
-		Creator.AddSignal(DropdownInner:GetPropertyChangedSignal("AbsolutePosition"), RecalculateListPosition)
+		-- Only track position while the dropdown is OPEN (prevents scroll re-entrancy spam)
+		local posConn = nil
+		local function BindPosTrack()
+			if posConn then return end
+			posConn = DropdownInner:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+				if Dropdown.Opened then
+					task.defer(RecalculateListPosition)
+				end
+			end)
+		end
+		local function UnbindPosTrack()
+			if posConn then
+				posConn:Disconnect()
+				posConn = nil
+			end
+		end
 
 		-- Open on click/tap (Activated works for mouse + touch)
 		Creator.AddSignal(DropdownInner.Activated, function()
@@ -3330,8 +3376,9 @@ ElementsTable.Dropdown = (function()
 				ScrollFrame.ScrollingEnabled = false
 			end
 			DropdownHolderCanvas.Visible = true
-			RecalculateListPosition()
 			RecalculateListSize()
+			RecalculateListPosition()
+			BindPosTrack()
 			TweenService:Create(
 				DropdownHolderFrame,
 				TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -3341,6 +3388,7 @@ ElementsTable.Dropdown = (function()
 
 		function Dropdown:Close()
 			Dropdown.Opened = false
+			UnbindPosTrack()
 			if ScrollFrame and ScrollFrame.ScrollingEnabled ~= nil then
 				ScrollFrame.ScrollingEnabled = true
 			end
