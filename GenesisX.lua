@@ -1288,8 +1288,8 @@ Components.Element = (function()
 				VerticalAlignment = Enum.VerticalAlignment.Center,
 			}),
 			New("UIPadding", {
-				PaddingBottom = UDim.new(0, 13),
-				PaddingTop = UDim.new(0, 13),
+				PaddingBottom = UDim.new(0, 12),
+				PaddingTop = UDim.new(0, 12),
 			}),
 			Element.TitleLabel,
 			Element.DescLabel,
@@ -1385,59 +1385,104 @@ end)()
 Components.Section = (function()
 	local New = Creator.New
 
-	return function(Title, Parent)
+	-- Title can be string, or table { Title, Icon, Side }
+	return function(Title, Parent, Icon)
 		local Section = {}
+		local TitleText = Title
+		local SectionIcon = Icon
+
+		if type(Title) == "table" then
+			TitleText = Title.Title or Title.Name or "Section"
+			SectionIcon = Title.Icon or Title.icon or SectionIcon
+		end
+
+		local resolvedIcon = nil
+		if SectionIcon and SectionIcon ~= "" then
+			resolvedIcon = Library:GetIcon(SectionIcon) or SectionIcon
+		end
 
 		Section.Layout = New("UIListLayout", {
 			Padding = UDim.new(0, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
+		-- Container grows with children (no AbsoluteContentSize fights)
 		Section.Container = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 26),
-			Position = UDim2.fromOffset(0, 24),
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
+			LayoutOrder = 2,
 		}, {
 			Section.Layout,
 		})
 
+		local titleOffsetX = resolvedIcon and 26 or 0
+
+		Section.TitleLabel = New("TextLabel", {
+			RichText = true,
+			Text = tostring(TitleText),
+			TextTransparency = 0,
+			FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+			TextSize = 16,
+			TextXAlignment = "Left",
+			TextYAlignment = "Center",
+			Size = UDim2.new(1, -titleOffsetX - 8, 1, 0),
+			Position = UDim2.fromOffset(titleOffsetX, 0),
+			BackgroundTransparency = 1,
+			ThemeTag = {
+				TextColor3 = "Text",
+			},
+		})
+
+		Section.TitleHolder = New("Frame", {
+			Size = UDim2.new(1, 0, 0, 22),
+			BackgroundTransparency = 1,
+			LayoutOrder = 1,
+		}, {
+			Section.TitleLabel,
+		})
+
+		if resolvedIcon then
+			New("ImageLabel", {
+				Image = resolvedIcon,
+				Size = UDim2.fromOffset(16, 16),
+				Position = UDim2.new(0, 0, 0.5, 0),
+				AnchorPoint = Vector2.new(0, 0.5),
+				BackgroundTransparency = 1,
+				Parent = Section.TitleHolder,
+				ThemeTag = {
+					ImageColor3 = "SubText",
+				},
+			})
+			-- small dot separator look: title already offset; optional middle dot in text
+			if not string.find(tostring(TitleText), "·", 1, true) then
+				Section.TitleLabel.Text = "·  " .. tostring(TitleText)
+			end
+		end
+
 		Section.Root = New("Frame", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 26),
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			LayoutOrder = 7,
 			Parent = Parent,
 		}, {
-			New("TextLabel", {
-				RichText = true,
-				Text = Title,
-				TextTransparency = 0,
-				FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-				TextSize = 18,
-				TextXAlignment = "Left",
-				TextYAlignment = "Center",
-				Size = UDim2.new(1, -16, 0, 18),
-				Position = UDim2.fromOffset(0, 2),
-				ThemeTag = {
-					TextColor3 = "Text",
-				},
+			New("UIListLayout", {
+				Padding = UDim.new(0, 8),
+				SortOrder = Enum.SortOrder.LayoutOrder,
 			}),
+			New("UIPadding", {
+				PaddingTop = UDim.new(0, 4),
+				PaddingBottom = UDim.new(0, 6),
+			}),
+			Section.TitleHolder,
 			Section.Container,
 		})
 
-		local _secUpdating = false
-		Creator.AddSignal(Section.Layout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-			if _secUpdating then return end
-			_secUpdating = true
-			local h = Section.Layout.AbsoluteContentSize.Y
-			Section.Container.Size = UDim2.new(1, 0, 0, h)
-			Section.Root.Size = UDim2.new(1, 0, 0, h + 32)
-			task.defer(function()
-				_secUpdating = false
-			end)
-		end)
 		return Section
 	end
 end)()
+
 Components.Tab = (function()
 	local New = Creator.New
 	local Spring = Flipper.Spring.new
@@ -1558,14 +1603,11 @@ Components.Tab = (function()
 			}),
 		})
 
-		local _tabUpdating = false
 		Creator.AddSignal(ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-			if _tabUpdating then return end
-			_tabUpdating = true
-			Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, ContainerLayout.AbsoluteContentSize.Y + 2)
-			task.defer(function()
-				_tabUpdating = false
-			end)
+			local h = ContainerLayout.AbsoluteContentSize.Y + 16
+			if Tab.ContainerFrame.CanvasSize.Y.Offset ~= h then
+				Tab.ContainerFrame.CanvasSize = UDim2.new(0, 0, 0, h)
+			end
 		end)
 
 		Tab.Motor, Tab.SetTransparency = Creator.SpringMotor(1, Tab.Frame, "BackgroundTransparency")
@@ -1592,12 +1634,63 @@ Components.Tab = (function()
 		Tab.Container = Tab.ContainerFrame
 		Tab.ScrollFrame = Tab.Container
 
-		function Tab:AddSection(SectionTitle)
-			local Section = { Type = "Section" }
+		-- TwoSides: split content into Left / Right columns
+		if Library.Window and Library.Window.TwoSides then
+			local Holder = New("Frame", {
+				Size = UDim2.new(1, 0, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundTransparency = 1,
+				Parent = Tab.ContainerFrame,
+			}, {
+				New("UIListLayout", {
+					FillDirection = Enum.FillDirection.Horizontal,
+					Padding = UDim.new(0, 12),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				}),
+			})
+			local function MakeCol(order)
+				local colLayout = New("UIListLayout", {
+					Padding = UDim.new(0, 8),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				})
+				local col = New("Frame", {
+					Size = UDim2.new(0.5, -6, 0, 0),
+					AutomaticSize = Enum.AutomaticSize.Y,
+					BackgroundTransparency = 1,
+					LayoutOrder = order,
+					Parent = Holder,
+				}, {
+					colLayout,
+				})
+				return col
+			end
+			Tab._Sides = {
+				Left = MakeCol(1),
+				Right = MakeCol(2),
+			}
+			-- default container for elements without section side still uses left
+			Tab.Container = Tab._Sides.Left
+		end
 
-			local SectionFrame = Components.Section(SectionTitle, Tab.Container)
+		function Tab:AddSection(SectionTitle, Icon)
+			local Section = { Type = "Section" }
+			local parent = Tab.Container
+			-- TwoSides support: Icon can be side string, or table config
+			local side = nil
+			if type(SectionTitle) == "table" then
+				side = SectionTitle.Side or SectionTitle.side
+			elseif type(Icon) == "string" and (Icon == "Left" or Icon == "Right") then
+				side = Icon
+				Icon = nil
+			end
+			if side and Tab._Sides then
+				parent = (tostring(side):lower() == "right") and Tab._Sides.Right or Tab._Sides.Left
+			end
+
+			local SectionFrame = Components.Section(SectionTitle, parent, Icon)
 			Section.Container = SectionFrame.Container
 			Section.ScrollFrame = Tab.Container
+			Section.Root = SectionFrame.Root
 
 			setmetatable(Section, Elements)
 			return Section
@@ -1886,18 +1979,32 @@ Components.Notification = (function()
 	local Notification = {}
 
 	function Notification:Init(GUI)
+		-- Separate high DisplayOrder ScreenGui so notifies always overlay the hub
+		local NotifyGui = New("ScreenGui", {
+			Name = "GenesisXYZ_Notifications",
+			ResetOnSpawn = false,
+			ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+			DisplayOrder = 2147483646,
+			IgnoreGuiInset = true,
+			Parent = GUI.Parent or GetUIParent(),
+		})
+		pcall(function()
+			ProtectGui(NotifyGui)
+		end)
+		Notification.Gui = NotifyGui
 		Notification.Holder = New("Frame", {
-			Position = UDim2.new(1, -30, 1, -30),
-			Size = UDim2.new(0, 310, 1, -30),
+			Position = UDim2.new(1, -16, 1, -16),
+			Size = UDim2.new(0, 310, 1, -32),
 			AnchorPoint = Vector2.new(1, 1),
 			BackgroundTransparency = 1,
-			Parent = GUI,
+			ZIndex = 100,
+			Parent = NotifyGui,
 		}, {
 			New("UIListLayout", {
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				VerticalAlignment = Enum.VerticalAlignment.Bottom,
-				Padding = UDim.new(0, 20),
+				Padding = UDim.new(0, 12),
 			}),
 		})
 	end
@@ -2381,6 +2488,7 @@ Components.Window = (function()
 		Window.AcrylicPaint = Acrylic.AcrylicPaint()
 		Window.TabWidth = Config.TabWidth or 160
 		Window.SearchBarEnabled = Config.SearchBar == true
+		Window.TwoSides = Config.TwoSides == true
 
 		-- Float icon override
 		if Config.FloatIcon and Library._FloatButton then
@@ -5867,6 +5975,7 @@ function Library:CreateWindow(Config)
 		TabWidth = Config.TabWidth or 160,
 		SearchBar = Config.SearchBar == true,
 		FloatIcon = Config.FloatIcon,
+		TwoSides = Config.TwoSides == true,
 	})
 
 	Library.Window = Window
@@ -5944,50 +6053,85 @@ function Library:SetBackground(Image, Configs)
 	local Window = Library.Window
 	if not Window or not Window.Root then return end
 	local root = Window.Root
+	local paint = Window.AcrylicPaint and Window.AcrylicPaint.Frame
+
 	local existing = root:FindFirstChild("GenesisBackground")
 	if existing then existing:Destroy() end
+	if paint then
+		local e2 = paint:FindFirstChild("GenesisBackground")
+		if e2 then e2:Destroy() end
+	end
 
 	local resolved = Library:GetIcon(Image) or Image
 	if not resolved or resolved == "" then return end
 
+	local parent = paint or root
+	local imgT = Configs.ImageTransparency
+	if imgT == nil then imgT = 0.25 end
+
 	local bg = New("ImageLabel", {
 		Name = "GenesisBackground",
 		Size = UDim2.fromScale(1, 1),
-		Position = UDim2.fromScale(0, 0),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundTransparency = 1,
 		Image = resolved,
 		ScaleType = Enum.ScaleType.Crop,
-		ImageTransparency = Configs.ImageTransparency or 0.15,
+		ImageTransparency = imgT,
 		ZIndex = 0,
-		Parent = root,
+		Parent = parent,
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 	})
+	bg.ZIndex = 0
 
-	local overlayT = 0.45
-	if Configs.Darkness ~= nil then
-		overlayT = 1 - math.clamp(tonumber(Configs.Darkness) or 0.55, 0, 1)
-	elseif Configs.Transparency ~= nil then
-		overlayT = math.clamp(tonumber(Configs.Transparency) or 0.45, 0, 1)
+	-- soften solid acrylic layers so the image is visible
+	if paint then
+		for _, d in ipairs(paint:GetDescendants()) do
+			if d:IsA("Frame") and (d.Name == "Background" or d.BackgroundTransparency < 0.5) then
+				if d.Name == "Background" then
+					d.BackgroundTransparency = math.max(d.BackgroundTransparency, 0.55)
+				end
+			end
+			if d:IsA("ImageLabel") and d ~= bg and d.ImageTransparency < 0.5 and d.ScaleType == Enum.ScaleType.Tile then
+				-- noise layers keep
+			end
+		end
+		local solid = paint:FindFirstChild("Background")
+		if solid and solid:IsA("Frame") then
+			solid.BackgroundTransparency = 0.62
+		end
 	end
+
+	local darkness = Configs.Darkness
+	if darkness == nil then darkness = 0.55 end
+	darkness = math.clamp(tonumber(darkness) or 0.55, 0, 1)
 
 	New("Frame", {
 		Name = "BgOverlay",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(12, 8, 20),
-		BackgroundTransparency = overlayT,
+		BackgroundColor3 = Color3.fromRGB(10, 6, 18),
+		BackgroundTransparency = 1 - darkness * 0.75,
+		BorderSizePixel = 0,
 		ZIndex = 1,
 		Parent = bg,
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 	})
+
+	Window._Background = bg
 end
 
 function Library:RemoveBackground()
 	local Window = Library.Window
 	if not Window or not Window.Root then return end
-	local existing = Window.Root:FindFirstChild("GenesisBackground")
-	if existing then existing:Destroy() end
+	for _, parent in ipairs({ Window.Root, Window.AcrylicPaint and Window.AcrylicPaint.Frame }) do
+		if parent then
+			local existing = parent:FindFirstChild("GenesisBackground")
+			if existing then existing:Destroy() end
+		end
+	end
+	Window._Background = nil
 end
 
 function Library:Notify(Config)
