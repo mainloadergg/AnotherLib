@@ -153,19 +153,34 @@ local function CloseOpen()
 	ScreenGui.Name = "OpenClose"
 	ScreenGui.Parent = GetUIParent()
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ScreenGui.DisplayOrder = 1000000
+	ScreenGui.IgnoreGuiInset = true
+	ScreenGui.ResetOnSpawn = false
 
 	Close_ImageButton.Parent = ScreenGui
-	Close_ImageButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	Close_ImageButton.BorderColor3 = Color3.fromRGB(120, 40, 200)
+	Close_ImageButton.BackgroundColor3 = Color3.fromRGB(18, 12, 28)
+	Close_ImageButton.BackgroundTransparency = 0.15
+	Close_ImageButton.BorderSizePixel = 0
 	Close_ImageButton.Position = UDim2.new(0.1021, 0, 0.0743, 0)
-	Close_ImageButton.Size = UDim2.new(0, 59, 0, 49)
+	Close_ImageButton.Size = UDim2.fromOffset(48, 48)
 	Close_ImageButton.Image = "rbxassetid://82140212012109"
+	Close_ImageButton.ScaleType = Enum.ScaleType.Fit
 	Close_ImageButton.Visible = false
 	Library._FloatButton = Close_ImageButton
 
 	UICorner.Name = "MainCorner"
-	UICorner.CornerRadius = UDim.new(0, 9)
+	UICorner.CornerRadius = UDim.new(0.15, 0)
 	UICorner.Parent = Close_ImageButton
+
+	local FloatStroke = Instance.new("UIStroke")
+	FloatStroke.Color = Color3.fromRGB(120, 40, 200)
+	FloatStroke.Thickness = 1.5
+	FloatStroke.Transparency = 0.35
+	FloatStroke.Parent = Close_ImageButton
+
+	local FloatAspect = Instance.new("UIAspectRatioConstraint")
+	FloatAspect.AspectRatio = 1
+	FloatAspect.Parent = Close_ImageButton
 
 	local dragging = false
 	local dragStart = nil
@@ -836,11 +851,22 @@ local New = Creator.New
 local GUI = New("ScreenGui", {
 	Name = "GenesisXYZ_ScreenGui",
 	Parent = GetUIParent(),
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	DisplayOrder = 999999,
+	IgnoreGuiInset = true,
 })
 
 do
 	Library.GUI = GUI
 	ProtectGui(GUI)
+	pcall(function()
+		GUI.Parent = GetUIParent()
+		if GUI:IsA("ScreenGui") then
+			GUI.DisplayOrder = 999999
+			GUI.IgnoreGuiInset = true
+		end
+	end)
 end
 
 
@@ -1363,7 +1389,8 @@ Components.Section = (function()
 		local Section = {}
 
 		Section.Layout = New("UIListLayout", {
-			Padding = UDim.new(0, 5),
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
 		Section.Container = New("Frame", {
@@ -1403,7 +1430,7 @@ Components.Section = (function()
 			_secUpdating = true
 			local h = Section.Layout.AbsoluteContentSize.Y
 			Section.Container.Size = UDim2.new(1, 0, 0, h)
-			Section.Root.Size = UDim2.new(1, 0, 0, h + 25)
+			Section.Root.Size = UDim2.new(1, 0, 0, h + 32)
 			task.defer(function()
 				_secUpdating = false
 			end)
@@ -1503,7 +1530,7 @@ Components.Tab = (function()
 		})
 
 		local ContainerLayout = New("UIListLayout", {
-			Padding = UDim.new(0, 5),
+			Padding = UDim.new(0, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		})
 
@@ -1525,9 +1552,9 @@ Components.Tab = (function()
 			ContainerLayout,
 			New("UIPadding", {
 				PaddingRight = UDim.new(0, 10),
-				PaddingLeft = UDim.new(0, 1),
-				PaddingTop = UDim.new(0, 1),
-				PaddingBottom = UDim.new(0, 1),
+				PaddingLeft = UDim.new(0, 4),
+				PaddingTop = UDim.new(0, 6),
+				PaddingBottom = UDim.new(0, 8),
 			}),
 		})
 
@@ -2231,7 +2258,7 @@ Components.TitleBar = (function()
 		end
 
 		TitleBar.Frame = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 32),
+			Size = UDim2.new(1, 0, 0, 36),
 			BackgroundTransparency = 1,
 			Parent = Config.Parent,
 		}, {
@@ -2310,10 +2337,8 @@ Components.TitleBar = (function()
 				},
 			})
 		end)
-		TitleBar.MaxButton = BarButton(Components.Assets.Max, UDim2.new(1, -34, 0, 3), TitleBar.Frame, function()
-			Config.Window.Maximize(not Config.Window.Maximized)
-		end)
-		TitleBar.MinButton = BarButton(Components.Assets.Min, UDim2.new(1, -66, 0, 3), TitleBar.Frame, function()
+		-- Max/fullscreen button removed (unused)
+		TitleBar.MinButton = BarButton(Components.Assets.Min, UDim2.new(1, -34, 0, 3), TitleBar.Frame, function()
 			Library.Window:Minimize()
 			if not Close_ImageButton.Visible then Close_ImageButton.Visible = true end
 		end)
@@ -2400,8 +2425,8 @@ Components.Window = (function()
 		})
 
 		local TabFrame = New("Frame", {
-			Size = UDim2.new(0, Window.TabWidth, 1, -54),
-			Position = UDim2.new(0, 12, 0, 42),
+			Size = UDim2.new(0, Window.TabWidth, 1, -56),
+			Position = UDim2.new(0, 12, 0, 44),
 			BackgroundTransparency = 1,
 			ClipsDescendants = true,
 		}, {
@@ -2409,19 +2434,64 @@ Components.Window = (function()
 			Selector,
 		})
 
-		-- SearchBar (left column top)
+		-- SearchBar (left column top) — clipped away from tab selector
 		if Window.SearchBarEnabled then
+			-- move selector + tabs into an inner clip so search stays clean
+			local TabsClip = New("Frame", {
+				Name = "TabsClip",
+				BackgroundTransparency = 1,
+				ClipsDescendants = true,
+				Size = UDim2.new(1, 0, 1, -38),
+				Position = UDim2.fromOffset(0, 38),
+				Parent = TabFrame,
+			})
+			Window.TabHolder.Parent = TabsClip
+			Selector.Parent = TabsClip
+			Window.TabHolder.Position = UDim2.fromOffset(0, 0)
+			Window.TabHolder.Size = UDim2.fromScale(1, 1)
+
 			local SearchHolder = New("Frame", {
-				Size = UDim2.new(1, 0, 0, 30),
-				Position = UDim2.fromOffset(0, 0),
+				Name = "SearchHolder",
+				Size = UDim2.new(1, -4, 0, 32),
+				Position = UDim2.fromOffset(2, 2),
 				BackgroundTransparency = 1,
 				Parent = TabFrame,
-				ZIndex = 5,
+				ZIndex = 6,
 			})
+
+			local SearchBg = New("Frame", {
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 0.55,
+				Parent = SearchHolder,
+				ZIndex = 6,
+				ThemeTag = {
+					BackgroundColor3 = "DropdownFrame",
+				},
+			}, {
+				New("UICorner", { CornerRadius = UDim.new(0, 6) }),
+				New("UIStroke", {
+					Transparency = 0.55,
+					Thickness = 1,
+					ThemeTag = { Color = "InElementBorder" },
+				}),
+			})
+
+			local SearchIcon = New("ImageLabel", {
+				Image = Library:GetIcon("search") or "rbxassetid://10734943674",
+				Size = UDim2.fromOffset(14, 14),
+				Position = UDim2.new(0, 10, 0.5, 0),
+				AnchorPoint = Vector2.new(0, 0.5),
+				BackgroundTransparency = 1,
+				ZIndex = 7,
+				Parent = SearchBg,
+				ThemeTag = { ImageColor3 = "SubText" },
+			})
+
 			local SearchBox = New("TextBox", {
-				Size = UDim2.new(1, -4, 1, 0),
-				Position = UDim2.fromOffset(2, 0),
-				BackgroundTransparency = 0.85,
+				Name = "SearchBox",
+				Size = UDim2.new(1, -36, 1, -4),
+				Position = UDim2.new(0, 30, 0, 2),
+				BackgroundTransparency = 1,
 				Text = "",
 				PlaceholderText = "Search",
 				PlaceholderColor3 = Color3.fromRGB(140, 130, 160),
@@ -2430,30 +2500,14 @@ Components.Window = (function()
 				FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
 				ClearTextOnFocus = false,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				Parent = SearchHolder,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				ClipsDescendants = true,
+				ZIndex = 7,
+				Parent = SearchBg,
 				ThemeTag = {
-					BackgroundColor3 = "DropdownFrame",
 					TextColor3 = "Text",
 				},
-			}, {
-				New("UICorner", { CornerRadius = UDim.new(0, 6) }),
-				New("UIPadding", { PaddingLeft = UDim.new(0, 28), PaddingRight = UDim.new(0, 8) }),
-				New("UIStroke", {
-					Transparency = 0.6,
-					ThemeTag = { Color = "InElementBorder" },
-				}),
-				New("ImageLabel", {
-					Image = Library:GetIcon("search") or "rbxassetid://10734943674",
-					Size = UDim2.fromOffset(14, 14),
-					Position = UDim2.new(0, 8, 0.5, 0),
-					AnchorPoint = Vector2.new(0, 0.5),
-					BackgroundTransparency = 1,
-					ThemeTag = { ImageColor3 = "SubText" },
-				}),
 			})
-			-- shift tab list down
-			Window.TabHolder.Position = UDim2.fromOffset(0, 34)
-			Window.TabHolder.Size = UDim2.new(1, 0, 1, -34)
 
 			local function ApplySearch(query)
 				query = string.lower(tostring(query or ""))
@@ -2586,7 +2640,9 @@ Components.Window = (function()
 		local OldSizeY
 		Window.Maximize = function(Value, NoPos, Instant)
 			Window.Maximized = Value
-			Window.TitleBar.MaxButton.Frame.Icon.Image = Value and Components.Assets.Restore or Components.Assets.Max
+			if Window.TitleBar.MaxButton and Window.TitleBar.MaxButton.Frame then
+				Window.TitleBar.MaxButton.Frame.Icon.Image = Value and Components.Assets.Restore or Components.Assets.Max
+			end
 
 			if Value then
 				OldSizeX = Window.Size.X.Offset
@@ -3440,7 +3496,7 @@ ElementsTable.DiscordInvite = (function()
 		local ButtonText = Config.Join or Config.ButtonText or "Join"
 
 		local Frame = Components.Element(Title, Desc, self.Container, true, Config)
-		Frame.DescLabel.Size = UDim2.new(1, -90, 0, 14)
+		Frame.DescLabel.Size = UDim2.new(1, -40, 0, 14)
 
 		if Logo then
 			local resolved = Library:GetIcon(Logo) or Logo
@@ -3455,27 +3511,24 @@ ElementsTable.DiscordInvite = (function()
 				New("UICorner", { CornerRadius = UDim.new(0, 6) }),
 			})
 			Frame.LabelHolder.Position = UDim2.fromOffset(46, 0)
-			Frame.LabelHolder.Size = UDim2.new(1, -130, 0, 0)
+			Frame.LabelHolder.Size = UDim2.new(1, -72, 0, 0)
+		else
+			Frame.LabelHolder.Size = UDim2.new(1, -40, 0, 0)
 		end
 
-		local JoinBtn = New("TextButton", {
-			Size = UDim2.fromOffset(64, 26),
-			Position = UDim2.new(1, -10, 0.5, 0),
+		local Chevron = New("ImageLabel", {
+			Image = "rbxassetid://10709791437",
+			Size = UDim2.fromOffset(18, 18),
 			AnchorPoint = Vector2.new(1, 0.5),
-			Text = ButtonText,
-			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-			TextSize = 12,
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			AutoButtonColor = false,
+			Position = UDim2.new(1, -12, 0.5, 0),
+			BackgroundTransparency = 1,
 			Parent = Frame.Frame,
 			ThemeTag = {
-				BackgroundColor3 = "Accent",
+				ImageColor3 = "Text",
 			},
-		}, {
-			New("UICorner", { CornerRadius = UDim.new(0, 6) }),
 		})
 
-		Creator.AddSignal(JoinBtn.MouseButton1Click, function()
+		Creator.AddSignal(Frame.Frame.MouseButton1Click, function()
 			local url = Invite
 			if not string.find(url, "http", 1, true) then
 				url = "https://discord.gg/" .. tostring(url)
@@ -3489,7 +3542,7 @@ ElementsTable.DiscordInvite = (function()
 					Content = "Invite copied!",
 					SubContent = tostring(url),
 					Duration = 3,
-				})
+				end)
 			end)
 			if Config.Callback then
 				Library:SafeCallback(Config.Callback, url)
