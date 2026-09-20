@@ -6256,7 +6256,177 @@ function Library:CreateWindow(Config)
 		end)
 	end)
 
+	-- ShowStatistics = "fps" / "ping" / "pName" or a table of those
+	if Config.ShowStatistics then
+		pcall(function()
+			Library:CreateStatistics(Config.ShowStatistics)
+		end)
+	end
+
 	return Window
+end
+
+function Library:CreateStatistics(Flags)
+	-- normalize flags
+	local flags = {}
+	if type(Flags) == "string" then
+		flags[string.lower(Flags)] = true
+	elseif type(Flags) == "table" then
+		local isArray = (#Flags > 0)
+		if isArray then
+			for _, v in ipairs(Flags) do
+				if type(v) == "string" then
+					flags[string.lower(v)] = true
+				end
+			end
+		else
+			for k, v in pairs(Flags) do
+				if v == true and type(k) == "string" then
+					flags[string.lower(k)] = true
+				elseif type(v) == "string" then
+					flags[string.lower(v)] = true
+				end
+			end
+		end
+	else
+		return
+	end
+
+	local showFps = flags["fps"] == true
+	local showPing = flags["ping"] == true
+	local showName = flags["pname"] == true or flags["player"] == true or flags["playername"] == true
+	if not (showFps or showPing or showName) then
+		return
+	end
+
+	-- destroy previous
+	if Library._StatsGui then
+		pcall(function() Library._StatsGui:Destroy() end)
+		Library._StatsGui = nil
+	end
+	if Library._StatsConn then
+		pcall(function() Library._StatsConn:Disconnect() end)
+		Library._StatsConn = nil
+	end
+
+	local parent = GetUIParent()
+	local statsGui = New("ScreenGui", {
+		Name = "GenesisXYZ_Statistics",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 999990,
+		IgnoreGuiInset = true,
+		Parent = parent,
+	})
+	pcall(function() ProtectGui(statsGui) end)
+	Library._StatsGui = statsGui
+
+	local Holder = New("Frame", {
+		Name = "StatsHolder",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 14),
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 0.25,
+		Parent = statsGui,
+		ThemeTag = {
+			BackgroundColor3 = "Dialog",
+		},
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+		New("UIStroke", {
+			Transparency = 0.45,
+			Thickness = 1,
+			ThemeTag = { Color = "ElementBorder" },
+		}),
+		New("UIPadding", {
+			PaddingLeft = UDim.new(0, 10),
+			PaddingRight = UDim.new(0, 10),
+			PaddingTop = UDim.new(0, 4),
+			PaddingBottom = UDim.new(0, 4),
+		}),
+	})
+
+	local Label = New("TextLabel", {
+		Name = "StatsLabel",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Text = "GENESIS HUB",
+		Parent = Holder,
+		ThemeTag = {
+			TextColor3 = "Text",
+		},
+	})
+
+	local StatsService = game:GetService("Stats")
+	local fps, ping = 60, 0
+	local frames, last = 0, tick()
+
+	local function BuildText()
+		local parts = { "GENESIS HUB" }
+		if showName then
+			local n = "Player"
+			pcall(function()
+				n = LocalPlayer and LocalPlayer.Name or n
+			end)
+			table.insert(parts, n)
+		end
+		if showFps then
+			table.insert(parts, tostring(fps) .. " FPS")
+		end
+		if showPing then
+			table.insert(parts, tostring(ping) .. " ms")
+		end
+		if #parts == 1 then
+			return parts[1]
+		end
+		-- GENESIS HUB | name · fps · ping
+		local head = parts[1]
+		local rest = {}
+		for i = 2, #parts do
+			table.insert(rest, parts[i])
+		end
+		return head .. "  |  " .. table.concat(rest, "  ·  ")
+	end
+
+	Label.Text = BuildText()
+
+	Library._StatsConn = RunService.RenderStepped:Connect(function()
+		frames = frames + 1
+		local now = tick()
+		if now - last >= 0.5 then
+			fps = math.floor(frames / (now - last) + 0.5)
+			frames = 0
+			last = now
+			if showPing then
+				pcall(function()
+					local item = StatsService.Network.ServerStatsItem["Data Ping"]
+					if item then
+						ping = math.floor((item:GetValue() or 0) + 0.5)
+					end
+				end)
+			end
+			Label.Text = BuildText()
+		end
+	end)
+
+	return statsGui
+end
+
+function Library:RemoveStatistics()
+	if Library._StatsConn then
+		pcall(function() Library._StatsConn:Disconnect() end)
+		Library._StatsConn = nil
+	end
+	if Library._StatsGui then
+		pcall(function() Library._StatsGui:Destroy() end)
+		Library._StatsGui = nil
+	end
 end
 
 function Library:SetTheme(Value)
