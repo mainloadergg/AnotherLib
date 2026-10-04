@@ -6257,39 +6257,65 @@ function Library:CreateWindow(Config)
 	end)
 
 	-- ShowStatistics = "fps" / "ping" / "pName" or a table of those
+	-- StatsTitle / StatisticsTitle = custom left label (default "GENESIS HUB")
 	if Config.ShowStatistics then
 		pcall(function()
-			Library:CreateStatistics(Config.ShowStatistics)
+			Library:CreateStatistics(Config.ShowStatistics, Config.StatsTitle or Config.StatisticsTitle)
 		end)
 	end
 
 	return Window
 end
 
-function Library:CreateStatistics(Flags)
-	-- normalize flags
+function Library:CreateStatistics(Flags, Title)
+	-- normalize flags + optional title
 	local flags = {}
+	local statsTitle = Title
 	if type(Flags) == "string" then
 		flags[string.lower(Flags)] = true
 	elseif type(Flags) == "table" then
+		-- map-style or mixed: Title / Label / Name = custom brand text
+		if type(Flags.Title) == "string" then
+			statsTitle = Flags.Title
+		end
+		if type(Flags.Label) == "string" then
+			statsTitle = Flags.Label
+		end
+		if type(Flags.Name) == "string" and not flags["pname"] then
+			-- only treat as brand if not meant as player flag elsewhere
+			if Flags.Name ~= true then
+				statsTitle = statsTitle or Flags.Name
+			end
+		end
 		local isArray = (#Flags > 0)
 		if isArray then
 			for _, v in ipairs(Flags) do
 				if type(v) == "string" then
-					flags[string.lower(v)] = true
+					local low = string.lower(v)
+					if low ~= "title" and low ~= "label" then
+						flags[low] = true
+					end
 				end
 			end
-		else
-			for k, v in pairs(Flags) do
-				if v == true and type(k) == "string" then
-					flags[string.lower(k)] = true
-				elseif type(v) == "string" then
-					flags[string.lower(v)] = true
+		end
+		for k, v in pairs(Flags) do
+			if type(k) == "string" then
+				local low = string.lower(k)
+				if low ~= "title" and low ~= "label" and low ~= "name" then
+					if v == true then
+						flags[low] = true
+					elseif type(v) == "string" and (low == "fps" or low == "ping" or low == "pname" or low == "player" or low == "playername") then
+						flags[string.lower(v)] = true
+					end
 				end
 			end
 		end
 	else
 		return
+	end
+
+	if type(statsTitle) ~= "string" or statsTitle == "" then
+		statsTitle = "GENESIS HUB"
 	end
 
 	local showFps = flags["fps"] == true
@@ -6356,7 +6382,7 @@ function Library:CreateStatistics(Flags)
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
-		Text = "GENESIS HUB",
+		Text = statsTitle,
 		Parent = Holder,
 		ThemeTag = {
 			TextColor3 = "Text",
@@ -6368,7 +6394,7 @@ function Library:CreateStatistics(Flags)
 	local frames, last = 0, tick()
 
 	local function BuildText()
-		local parts = { "GENESIS HUB" }
+		local parts = { statsTitle }
 		if showName then
 			local n = "Player"
 			pcall(function()
@@ -6385,13 +6411,20 @@ function Library:CreateStatistics(Flags)
 		if #parts == 1 then
 			return parts[1]
 		end
-		-- GENESIS HUB | name · fps · ping
 		local head = parts[1]
 		local rest = {}
 		for i = 2, #parts do
 			table.insert(rest, parts[i])
 		end
 		return head .. "  |  " .. table.concat(rest, "  ·  ")
+	end
+
+	-- allow live title change
+	function Library:SetStatisticsTitle(NewTitle)
+		if type(NewTitle) == "string" and NewTitle ~= "" then
+			statsTitle = NewTitle
+			Label.Text = BuildText()
+		end
 	end
 
 	Label.Text = BuildText()
