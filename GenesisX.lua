@@ -6363,242 +6363,7 @@ function Library:CreateWindow(Config)
 		end)
 	end)
 
-	-- ShowStatistics = "fps" / "ping" / "pName" or a table of those
-	-- StatsTitle / StatisticsTitle = custom left label (default "GENESIS HUB")
-	if Config.ShowStatistics then
-		pcall(function()
-			Library:CreateStatistics(Config.ShowStatistics, Config.StatsTitle or Config.StatisticsTitle)
-		end)
-	end
-
 	return Window
-end
-
-function Library:CreateStatistics(Flags, Title)
-	-- normalize flags + optional title
-	local flags = {}
-	local statsTitle = Title
-	if type(Flags) == "string" then
-		flags[string.lower(Flags)] = true
-	elseif type(Flags) == "table" then
-		-- map-style or mixed: Title / Label / Name = custom brand text
-		if type(Flags.Title) == "string" then
-			statsTitle = Flags.Title
-		end
-		if type(Flags.Label) == "string" then
-			statsTitle = Flags.Label
-		end
-		if type(Flags.Name) == "string" and not flags["pname"] then
-			-- only treat as brand if not meant as player flag elsewhere
-			if Flags.Name ~= true then
-				statsTitle = statsTitle or Flags.Name
-			end
-		end
-		local isArray = (#Flags > 0)
-		if isArray then
-			for _, v in ipairs(Flags) do
-				if type(v) == "string" then
-					local low = string.lower(v)
-					if low ~= "title" and low ~= "label" then
-						flags[low] = true
-					end
-				end
-			end
-		end
-		for k, v in pairs(Flags) do
-			if type(k) == "string" then
-				local low = string.lower(k)
-				if low ~= "title" and low ~= "label" and low ~= "name" then
-					if v == true then
-						flags[low] = true
-					elseif type(v) == "string" and (low == "fps" or low == "ping" or low == "pname" or low == "player" or low == "playername") then
-						flags[string.lower(v)] = true
-					end
-				end
-			end
-		end
-	else
-		return
-	end
-
-	if type(statsTitle) ~= "string" or statsTitle == "" then
-		statsTitle = "GENESIS HUB"
-	end
-
-	local showFps = flags["fps"] == true
-	local showPing = flags["ping"] == true
-	local showName = flags["pname"] == true or flags["player"] == true or flags["playername"] == true
-	if not (showFps or showPing or showName) then
-		return
-	end
-
-	-- destroy previous
-	if Library._StatsGui then
-		pcall(function() Library._StatsGui:Destroy() end)
-		Library._StatsGui = nil
-	end
-	if Library._StatsConn then
-		pcall(function() Library._StatsConn:Disconnect() end)
-		Library._StatsConn = nil
-	end
-
-	local parent = GetUIParent()
-	local statsGui = New("ScreenGui", {
-		Name = "GenesisXYZ_Statistics",
-		ResetOnSpawn = false,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-		DisplayOrder = 999990,
-		IgnoreGuiInset = true,
-		Parent = parent,
-	})
-	pcall(function() ProtectGui(statsGui) end)
-	Library._StatsGui = statsGui
-
-	local function TC(key)
-		local t = Themes[Library.Theme] or Themes.GenesisX
-		return t[key]
-	end
-
-	-- Compact stats chip: pure accent purple + full-card reflection
-	-- (no Scale children — they break AutomaticSize and stretch the bar)
-	local purePurple = TC("Accent")
-
-	local Holder = New("Frame", {
-		Name = "StatsHolder",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(10, 30),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = purePurple,
-		BackgroundTransparency = 0.18,
-		ClipsDescendants = true,
-		Parent = statsGui,
-	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
-		New("UIPadding", {
-			PaddingLeft = UDim.new(0, 12),
-			PaddingRight = UDim.new(0, 12),
-			PaddingTop = UDim.new(0, 6),
-			PaddingBottom = UDim.new(0, 6),
-		}),
-	})
-	Library._StatsHolder = Holder
-
-	local HolderStroke = New("UIStroke", {
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = Color3.fromRGB(220, 180, 255),
-		Transparency = 0.35,
-		Thickness = 1.2,
-		Parent = Holder,
-	})
-
-	local Label = New("TextLabel", {
-		Name = "StatsLabel",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-		Text = statsTitle,
-		Parent = Holder,
-		ZIndex = 5,
-	})
-
-	local function ApplyStatsTheme()
-		local p = TC("Accent")
-		Holder.BackgroundColor3 = p
-		Holder.BackgroundTransparency = 0.18
-		HolderStroke.Color = p:Lerp(Color3.fromRGB(255, 255, 255), 0.35)
-		Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		pcall(function()
-			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
-		end)
-	end
-	Library._ApplyStatsTheme = ApplyStatsTheme
-	task.defer(function()
-		Library:_MakeShine(Holder, 8, "strong")
-	end)
-
-	local StatsService = game:GetService("Stats")
-	local fps, ping = 60, 0
-	local frames, last = 0, tick()
-
-	local function BuildText()
-		local parts = { statsTitle }
-		if showName then
-			local n = "Player"
-			pcall(function()
-				n = LocalPlayer and LocalPlayer.Name or n
-			end)
-			table.insert(parts, n)
-		end
-		if showFps then
-			table.insert(parts, tostring(fps) .. " FPS")
-		end
-		if showPing then
-			table.insert(parts, tostring(ping) .. " ms")
-		end
-		if #parts == 1 then
-			return parts[1]
-		end
-		local head = parts[1]
-		local rest = {}
-		for i = 2, #parts do
-			table.insert(rest, parts[i])
-		end
-		return head .. "  |  " .. table.concat(rest, "  ·  ")
-	end
-
-	-- allow live title change
-	function Library:SetStatisticsTitle(NewTitle)
-		if type(NewTitle) == "string" and NewTitle ~= "" then
-			statsTitle = NewTitle
-			Label.Text = BuildText()
-		end
-	end
-
-	Label.Text = BuildText()
-
-	-- apply current theme colors immediately (stats lives outside main window tree)
-	pcall(function()
-		Creator.UpdateTheme()
-	end)
-
-	Library._StatsConn = RunService.RenderStepped:Connect(function()
-		frames = frames + 1
-		local now = tick()
-		if now - last >= 0.5 then
-			fps = math.floor(frames / (now - last) + 0.5)
-			frames = 0
-			last = now
-			if showPing then
-				pcall(function()
-					local item = StatsService.Network.ServerStatsItem["Data Ping"]
-					if item then
-						ping = math.floor((item:GetValue() or 0) + 0.5)
-					end
-				end)
-			end
-			Label.Text = BuildText()
-		end
-	end)
-
-	return statsGui
-end
-
-
-function Library:RemoveStatistics()
-	if Library._StatsConn then
-		pcall(function() Library._StatsConn:Disconnect() end)
-		Library._StatsConn = nil
-	end
-	if Library._StatsGui then
-		pcall(function() Library._StatsGui:Destroy() end)
-		Library._StatsGui = nil
-	end
 end
 
 --[[
@@ -6837,13 +6602,14 @@ function Library:CreateSidePanel(Config)
 	})
 
 	-- ===== Edge handle (visible when CLOSED only; when open, use header arrow) =====
+	-- Handle matches main window acrylic (not solid pure purple)
 	local Handle = New("TextButton", {
 		Name = "SideHandle",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, handleYScale, 0),
 		Size = UDim2.fromOffset(28, 60),
-		BackgroundColor3 = TC("Accent"),
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = TC("AcrylicMain"),
+		BackgroundTransparency = 0.2,
 		Text = "",
 		AutoButtonColor = false,
 		Active = true,
@@ -6855,13 +6621,18 @@ function Library:CreateSidePanel(Config)
 	})
 	Library._SideHandle = Handle
 
+	local HandleGrad = New("UIGradient", {
+		Rotation = 90,
+		Color = TC("AcrylicGradient"),
+		Parent = Handle,
+	})
+
 	local HandleStroke = New("UIStroke", {
-		Color = Color3.fromRGB(220, 180, 255),
+		Color = TC("AcrylicBorder"),
 		Transparency = 0.35,
 		Thickness = 1.2,
 		Parent = Handle,
 	})
-	local HandleInner = nil
 
 	local HandleIcon = New("ImageLabel", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -6888,10 +6659,11 @@ function Library:CreateSidePanel(Config)
 		CollapseBtn.ImageColor3 = C("SubText")
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
-		Handle.BackgroundColor3 = C("Accent")
-		Handle.BackgroundTransparency = 0.15
-		HandleStroke.Color = C("Accent"):Lerp(Color3.fromRGB(255, 255, 255), 0.35)
-		HandleIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		Handle.BackgroundColor3 = C("AcrylicMain")
+		Handle.BackgroundTransparency = 0.2
+		if HandleGrad then HandleGrad.Color = C("AcrylicGradient") end
+		HandleStroke.Color = C("AcrylicBorder")
+		HandleIcon.ImageColor3 = C("Text")
 		pcall(function()
 			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
 		end)
@@ -7052,11 +6824,6 @@ function Library:SetTheme(Value)
 			Library:_UpdateV2Shine()
 		end)
 		pcall(function()
-			if Library._ApplyStatsTheme then
-				Library._ApplyStatsTheme()
-			end
-		end)
-		pcall(function()
 			if Library._ApplySideTheme then
 				Library._ApplySideTheme()
 			end
@@ -7067,6 +6834,7 @@ end
 -- Reflection sweep used by window / stats / side panel
 -- intensity: "normal" (window) | "strong" (small widgets)
 -- CanvasGroup clips the beam to rounded corners (Frame+UICorner alone looks square)
+-- Gentle reflection sweep (must stay inside host bounds — no hard clipping artifacts)
 function Library:_MakeShine(Host, CornerRadius, Intensity)
 	if not Host then return nil end
 	CornerRadius = CornerRadius or 8
@@ -7076,55 +6844,56 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 	local old = Host:FindFirstChild("GenesisShine")
 	if old then old:Destroy() end
 
-	-- CanvasGroup = proper rounded mask for moving beam
-	local shine = Instance.new("CanvasGroup")
-	shine.Name = "GenesisShine"
-	shine.BackgroundTransparency = 1
-	shine.Size = UDim2.fromScale(1, 1)
-	shine.Position = UDim2.fromScale(0, 0)
-	shine.ZIndex = 50
-	shine.GroupTransparency = 0
-	shine.Active = false
-	shine.Parent = Host
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, CornerRadius)
-	corner.Parent = shine
-
-	local beamW = strong and 0.85 or 0.42
-	local baseT = strong and 0.45 or 0.78
-	local peakT = strong and 0.32 or 0.74
-
-	local beam = Instance.new("Frame")
-	beam.Name = "ShineBeam"
-	beam.Size = UDim2.new(beamW, 0, strong and 2.2 or 1.5, 0)
-	beam.Position = UDim2.new(-0.8, 0, -0.5, 0)
-	beam.BackgroundColor3 = strong and Color3.fromRGB(245, 220, 255) or Color3.fromRGB(210, 160, 255)
-	beam.BackgroundTransparency = baseT
-	beam.BorderSizePixel = 0
-	beam.Rotation = strong and 10 or 16
-	beam.Active = false
-	beam.ZIndex = 51
-	beam.Parent = shine
-
-	local grad = Instance.new("UIGradient")
-	grad.Rotation = 0
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.3, strong and 0.25 or 0.55),
-		NumberSequenceKeypoint.new(0.5, strong and 0.05 or 0.2),
-		NumberSequenceKeypoint.new(0.7, strong and 0.25 or 0.55),
-		NumberSequenceKeypoint.new(1, 1),
+	local shine = New("Frame", {
+		Name = "GenesisShine",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0, 0),
+		ZIndex = 8,
+		ClipsDescendants = true,
+		Active = false,
+		Parent = Host,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, CornerRadius) }),
 	})
-	grad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(170, 90, 255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 120, 255)),
+
+	-- beam stays mostly inside the host (avoids looking "cut")
+	local beamW = strong and 0.55 or 0.35
+	local baseT = strong and 0.55 or 0.82
+	local peakT = strong and 0.42 or 0.78
+
+	local beam = New("Frame", {
+		Name = "ShineBeam",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.new(beamW, 0, 1.25, 0),
+		Position = UDim2.new(-0.2, 0, 0.5, 0),
+		BackgroundColor3 = strong and Color3.fromRGB(235, 210, 255) or Color3.fromRGB(200, 160, 255),
+		BackgroundTransparency = baseT,
+		BorderSizePixel = 0,
+		Rotation = strong and 8 or 12,
+		Active = false,
+		ZIndex = 9,
+		Parent = shine,
+	}, {
+		New("UIGradient", {
+			Rotation = 0,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.35, strong and 0.4 or 0.65),
+				NumberSequenceKeypoint.new(0.5, strong and 0.15 or 0.35),
+				NumberSequenceKeypoint.new(0.65, strong and 0.4 or 0.65),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 80, 255)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(245, 230, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 100, 255)),
+			}),
+		}),
 	})
-	grad.Parent = beam
 
 	local t0 = tick()
-	local speed = strong and 2.4 or 3.4
+	local speed = strong and 2.8 or 3.8
 	local conn
 	conn = RunService.RenderStepped:Connect(function()
 		if not shine.Parent or not beam.Parent then
@@ -7132,8 +6901,9 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 			return
 		end
 		local alpha = ((tick() - t0) % speed) / speed
-		beam.Position = UDim2.new(-0.8 + alpha * 2.2, 0, -0.5, 0)
-		beam.BackgroundTransparency = peakT + math.sin(alpha * math.pi * 2) * (strong and 0.12 or 0.06)
+		-- sweep from just left of center-left to just right of center-right
+		beam.Position = UDim2.new(-0.15 + alpha * 1.3, 0, 0.5, 0)
+		beam.BackgroundTransparency = peakT + math.sin(alpha * math.pi * 2) * 0.05
 	end)
 
 	shine.Destroying:Connect(function()
@@ -7144,44 +6914,38 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 end
 
 function Library:_UpdateV2Shine()
-	-- window shine
-	if Library._V2ShineConn then
-		pcall(function() Library._V2ShineConn:Disconnect() end)
-		Library._V2ShineConn = nil
-	end
 	if Library._V2ShineFrame then
 		pcall(function() Library._V2ShineFrame:Destroy() end)
 		Library._V2ShineFrame = nil
 	end
 
-	local useShine = (Library.Theme == "Genesis V2")
-	if useShine and Library.Window and Library.Window.Root then
-		local host = (Library.Window.AcrylicPaint and Library.Window.AcrylicPaint.Frame) or Library.Window.Root
-		Library._V2ShineFrame = Library:_MakeShine(host, 8)
+	if Library.Theme ~= "Genesis V2" then
+		pcall(function()
+			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
+		end)
+		return
 	end
 
-	-- stats + side panel shimmers refresh with theme
+	if Library.Window and Library.Window.Root then
+		local host = (Library.Window.AcrylicPaint and Library.Window.AcrylicPaint.Frame) or Library.Window.Root
+		Library._V2ShineFrame = Library:_MakeShine(host, 8, "normal")
+	end
+
 	pcall(function()
-		if Library._RefreshOverlayShines then
-			Library._RefreshOverlayShines()
-		end
+		if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
 	end)
 end
 
 function Library:_RefreshOverlayShines()
 	local useShine = (Library.Theme == "Genesis V2")
-	-- stats + handle: always pure-purple reflection (small chips)
-	if Library._StatsHolder then
-		local old = Library._StatsHolder:FindFirstChild("GenesisShine")
-		if old then old:Destroy() end
-		Library:_MakeShine(Library._StatsHolder, 8, "strong")
-	end
+	-- side handle follows main UI style shine only on V2
 	if Library._SideHandle then
 		local old = Library._SideHandle:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
-		Library:_MakeShine(Library._SideHandle, 8, "strong")
+		if useShine then
+			Library:_MakeShine(Library._SideHandle, 8, "strong")
+		end
 	end
-	-- main side panel body: V2 only
 	if Library._SidePaint then
 		local old = Library._SidePaint:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
