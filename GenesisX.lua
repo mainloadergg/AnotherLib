@@ -6458,25 +6458,29 @@ function Library:CreateStatistics(Flags, Title)
 		Name = "StatsHolder",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(0, 28),
+		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = 0.08,
 		Parent = statsGui,
 		ThemeTag = {
-			BackgroundColor3 = "Dialog",
+			BackgroundColor3 = "AcrylicMain",
 		},
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 		New("UIStroke", {
-			Transparency = 0.35,
+			Transparency = 0.3,
 			Thickness = 1.2,
 			ThemeTag = { Color = "Accent" },
 		}),
+		New("UIGradient", {
+			Rotation = 90,
+			ThemeTag = { Color = "AcrylicGradient" },
+		}),
 		New("UIPadding", {
-			PaddingLeft = UDim.new(0, 10),
-			PaddingRight = UDim.new(0, 10),
-			PaddingTop = UDim.new(0, 4),
-			PaddingBottom = UDim.new(0, 4),
+			PaddingLeft = UDim.new(0, 12),
+			PaddingRight = UDim.new(0, 12),
+			PaddingTop = UDim.new(0, 5),
+			PaddingBottom = UDim.new(0, 5),
 		}),
 	})
 
@@ -6491,6 +6495,7 @@ function Library:CreateStatistics(Flags, Title)
 		TextYAlignment = Enum.TextYAlignment.Center,
 		Text = statsTitle,
 		Parent = Holder,
+		ZIndex = 2,
 		ThemeTag = {
 			TextColor3 = "Text",
 		},
@@ -6583,22 +6588,30 @@ end
 	    SubTitle = "Menu",
 	    Width = 270,
 	    DefaultOpen = false,
+	    Theme = "Genesis V2", -- optional
 	  })
-	  Side:AddToggle("x", { Title = "...", Default = false, Callback = function() end })
 ]]
 function Library:CreateSidePanel(Config)
 	Config = Config or {}
 	local Title = tostring(Config.Title or "Panel")
 	local SubTitle = tostring(Config.SubTitle or "")
-	local Width = tonumber(Config.Width) or 270
-	Width = math.clamp(Width, 200, 360)
+	local Width = math.clamp(tonumber(Config.Width) or 270, 200, 360)
 	local DefaultOpen = Config.DefaultOpen == true
+	local sideTheme = Config.Theme
+	if type(sideTheme) == "string" and Themes[sideTheme] then
+		-- ok
+	else
+		sideTheme = Library.Theme
+	end
 
-	-- destroy previous side panel
 	if Library._SidePanelGui then
 		pcall(function() Library._SidePanelGui:Destroy() end)
 		Library._SidePanelGui = nil
 	end
+
+	-- temporarily apply panel theme so ThemeTags pick correct colors
+	local prevTheme = Library.Theme
+	Library.Theme = sideTheme
 
 	local parent = GetUIParent()
 	local gui = New("ScreenGui", {
@@ -6612,13 +6625,12 @@ function Library:CreateSidePanel(Config)
 	pcall(function() ProtectGui(gui) end)
 	Library._SidePanelGui = gui
 
-	-- load saved handle Y (0..1 scale from top of usable area)
 	local handleYScale = 0.5
 	pcall(function()
 		if isfile and isfile("GenesisXYZ/sidepanel_handle.json") then
 			local data = httpService:JSONDecode(readfile("GenesisXYZ/sidepanel_handle.json"))
 			if type(data) == "table" and type(data.y) == "number" then
-				handleYScale = math.clamp(data.y, 0.08, 0.92)
+				handleYScale = math.clamp(data.y, 0.1, 0.9)
 			end
 		end
 	end)
@@ -6626,80 +6638,37 @@ function Library:CreateSidePanel(Config)
 	local function SaveHandleY(yScale)
 		pcall(function()
 			if not isfolder then return end
-			if not isfolder("GenesisXYZ") then
-				makefolder("GenesisXYZ")
-			end
+			if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
 			writefile("GenesisXYZ/sidepanel_handle.json", httpService:JSONEncode({ y = yScale }))
 		end)
 	end
 
-	-- ===== Edge handle (draggable vertically) =====
-	local Handle = New("TextButton", {
-		Name = "SideHandle",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, 0, handleYScale, 0),
-		Size = UDim2.fromOffset(28, 56),
-		BackgroundTransparency = 0.12,
-		Text = "",
-		AutoButtonColor = false,
-		Parent = gui,
-		ThemeTag = {
-			BackgroundColor3 = "Dialog",
-		},
-	}, {
-		New("UICorner", {
-			CornerRadius = UDim.new(0, 10),
-			-- only round left side visually via padding offset
-		}),
-		New("UIStroke", {
-			Transparency = 0.4,
-			Thickness = 1,
-			ThemeTag = { Color = "Accent" },
-		}),
-	})
-
-	local HandleIcon = New("ImageLabel", {
-		Name = "Arrow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 1,
-		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709781939",
-		Parent = Handle,
-		ThemeTag = {
-			ImageColor3 = "Text",
-		},
-	})
-
-	-- ===== Panel (always vertical-center on right) =====
+	-- ===== Panel (center-right) =====
 	local Panel = New("Frame", {
 		Name = "SidePanel",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(1, 8, 0.5, 0), -- start off-screen to the right
-		Size = UDim2.fromOffset(Width, 0),
-		BackgroundTransparency = 0.08,
+		Position = UDim2.new(1, 16, 0.5, 0),
+		Size = UDim2.fromOffset(Width, 320),
+		BackgroundTransparency = 0.05,
 		ClipsDescendants = true,
 		Parent = gui,
-		ThemeTag = {
-			BackgroundColor3 = "Dialog",
-		},
+		ThemeTag = { BackgroundColor3 = "Dialog" },
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 12) }),
 		New("UIStroke", {
-			Transparency = 0.35,
+			Transparency = 0.3,
 			Thickness = 1.2,
 			ThemeTag = { Color = "AcrylicBorder" },
 		}),
-		New("UISizeConstraint", {
-			MinSize = Vector2.new(Width, 180),
-			MaxSize = Vector2.new(Width, 520),
+		New("UIGradient", {
+			Rotation = 90,
+			ThemeTag = { Color = "AcrylicGradient" },
 		}),
 	})
 
-	-- height ~ 62% of viewport, clamped
 	local function RefreshPanelHeight()
 		local vs = Camera.ViewportSize
-		local h = math.clamp(math.floor(vs.Y * 0.62), 220, 520)
+		local h = math.clamp(math.floor(vs.Y * 0.62), 240, 520)
 		Panel.Size = UDim2.fromOffset(Width, h)
 	end
 	RefreshPanelHeight()
@@ -6707,12 +6676,22 @@ function Library:CreateSidePanel(Config)
 		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshPanelHeight)
 	end)
 
-	-- Header (title above subtitle — no icon)
+	-- solid header bar (readable over gradient)
 	local Header = New("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 54),
-		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 56),
+		BackgroundTransparency = 0.25,
 		Parent = Panel,
+		ThemeTag = { BackgroundColor3 = "Element" },
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+		New("Frame", {
+			Size = UDim2.new(1, 0, 0, 14),
+			Position = UDim2.new(0, 0, 1, -14),
+			BorderSizePixel = 0,
+			BackgroundTransparency = 0,
+			ThemeTag = { BackgroundColor3 = "Element" },
+		}),
 	})
 
 	local TitleLabel = New("TextLabel", {
@@ -6722,8 +6701,9 @@ function Library:CreateSidePanel(Config)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -44, 0, 20),
+		Size = UDim2.new(1, -48, 0, 20),
 		Position = UDim2.fromOffset(14, 10),
+		ZIndex = 2,
 		Parent = Header,
 		ThemeTag = { TextColor3 = "Text" },
 	})
@@ -6732,12 +6712,13 @@ function Library:CreateSidePanel(Config)
 		Text = SubTitle,
 		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
 		TextSize = 12,
-		TextTransparency = 0.35,
+		TextTransparency = 0.3,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -44, 0, 16),
-		Position = UDim2.fromOffset(14, 30),
+		Size = UDim2.new(1, -48, 0, 16),
+		Position = UDim2.fromOffset(14, 32),
+		ZIndex = 2,
 		Parent = Header,
 		ThemeTag = { TextColor3 = "SubText" },
 	})
@@ -6748,15 +6729,16 @@ function Library:CreateSidePanel(Config)
 		Position = UDim2.new(1, -28, 0, 12),
 		BackgroundTransparency = 1,
 		AutoButtonColor = false,
+		ZIndex = 3,
 		Parent = Header,
 		ThemeTag = { ImageColor3 = "SubText" },
 	})
 
 	local Divider = New("Frame", {
 		Size = UDim2.new(1, -24, 0, 1),
-		Position = UDim2.new(0.5, 0, 0, 54),
+		Position = UDim2.new(0.5, 0, 0, 56),
 		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundTransparency = 0.55,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		Parent = Panel,
 		ThemeTag = { BackgroundColor3 = "ElementBorder" },
@@ -6764,16 +6746,17 @@ function Library:CreateSidePanel(Config)
 
 	local Scroll = New("ScrollingFrame", {
 		Name = "Content",
-		Size = UDim2.new(1, -12, 1, -64),
-		Position = UDim2.fromOffset(6, 58),
+		Size = UDim2.new(1, -12, 1, -68),
+		Position = UDim2.fromOffset(6, 62),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 4,
-		ScrollBarImageTransparency = 0.55,
+		ScrollBarImageTransparency = 0.5,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ElasticBehavior = Enum.ElasticBehavior.Never,
+		Active = true,
 		Parent = Panel,
 	}, {
 		New("UIListLayout", {
@@ -6782,21 +6765,81 @@ function Library:CreateSidePanel(Config)
 		}),
 		New("UIPadding", {
 			PaddingTop = UDim.new(0, 6),
-			PaddingBottom = UDim.new(0, 12),
+			PaddingBottom = UDim.new(0, 14),
 			PaddingLeft = UDim.new(0, 4),
 			PaddingRight = UDim.new(0, 6),
 		}),
 	})
 
-	pcall(function()
-		Creator.UpdateTheme()
-	end)
+	-- ===== Handle (always visible; sits on panel left when open) =====
+	local Handle = New("TextButton", {
+		Name = "SideHandle",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, handleYScale, 0),
+		Size = UDim2.fromOffset(30, 64),
+		BackgroundTransparency = 0.06,
+		Text = "",
+		AutoButtonColor = false,
+		Active = true,
+		Selectable = true,
+		ZIndex = 10,
+		Parent = gui,
+		ThemeTag = { BackgroundColor3 = "Dialog" },
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+		New("UIStroke", {
+			Transparency = 0.3,
+			Thickness = 1.2,
+			ThemeTag = { Color = "Accent" },
+		}),
+		New("UIGradient", {
+			Rotation = 90,
+			ThemeTag = { Color = "AcrylicGradient" },
+		}),
+	})
 
-	-- ===== Open / close animation =====
+	local HandleIcon = New("ImageLabel", {
+		Name = "Arrow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(16, 16),
+		BackgroundTransparency = 1,
+		ZIndex = 11,
+		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709791281",
+		Parent = Handle,
+		ThemeTag = { ImageColor3 = "Text" },
+	})
+
+	pcall(function() Creator.UpdateTheme() end)
+
+	-- restore global theme (side panel objects already registered with sideTheme colors;
+	-- next global SetTheme will recolor them — acceptable, or freeze by not using ThemeTag updates)
+	Library.Theme = prevTheme
+	pcall(function() Creator.UpdateTheme() end)
+	-- re-apply side theme colors onto our registered objects by switching once more briefly
+	-- Actually after restore, UpdateTheme paints everything with prevTheme — good if sideTheme == Library.Theme.
+	-- If Config.Theme was different, force side colors now:
+	if sideTheme ~= prevTheme and Themes[sideTheme] then
+		local function paint(obj, prop, key)
+			if obj and Themes[sideTheme][key] ~= nil then
+				pcall(function() obj[prop] = Themes[sideTheme][key] end)
+			end
+		end
+		paint(Panel, "BackgroundColor3", "Dialog")
+		paint(Header, "BackgroundColor3", "Element")
+		paint(TitleLabel, "TextColor3", "Text")
+		paint(SubLabel, "TextColor3", "SubText")
+		paint(Handle, "BackgroundColor3", "Dialog")
+		paint(HandleIcon, "ImageColor3", "Text")
+		paint(CloseBtn, "ImageColor3", "SubText")
+		paint(Divider, "BackgroundColor3", "ElementBorder")
+	end
+
 	local Side = {
-		Open = DefaultOpen,
+		Open = false,
 		Title = Title,
 		SubTitle = SubTitle,
+		Theme = sideTheme,
 		Container = Scroll,
 		ScrollFrame = Scroll,
 		Root = Panel,
@@ -6805,15 +6848,25 @@ function Library:CreateSidePanel(Config)
 	}
 
 	local function SetArrow(open)
-		-- open = chevron right (pointing to close), closed = chevron left
-		local icon = open and (Library:GetIcon("chevron-right") or "rbxassetid://10709782746")
-			or (Library:GetIcon("chevron-left") or "rbxassetid://10709781939")
-		HandleIcon.Image = icon
+		HandleIcon.Image = open
+			and (Library:GetIcon("chevron-right") or "rbxassetid://10709791437")
+			or (Library:GetIcon("chevron-left") or "rbxassetid://10709791281")
+	end
+
+	local function PlaceHandle()
+		-- keep handle always visible
+		if Side.Open then
+			-- docked to left edge of open panel
+			Handle.Position = UDim2.new(1, -(Width + 12), handleYScale, 0)
+		else
+			Handle.Position = UDim2.new(1, 0, handleYScale, 0)
+		end
 	end
 
 	function Side:Show()
 		Side.Open = true
 		SetArrow(true)
+		PlaceHandle()
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -6824,19 +6877,16 @@ function Library:CreateSidePanel(Config)
 	function Side:Hide()
 		Side.Open = false
 		SetArrow(false)
+		PlaceHandle()
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
-			{ Position = UDim2.new(1, 8, 0.5, 0) }
+			{ Position = UDim2.new(1, 16, 0.5, 0) }
 		):Play()
 	end
 
 	function Side:Toggle()
-		if Side.Open then
-			Side:Hide()
-		else
-			Side:Show()
-		end
+		if Side.Open then Side:Hide() else Side:Show() end
 	end
 
 	function Side:SetTitle(t)
@@ -6845,6 +6895,25 @@ function Library:CreateSidePanel(Config)
 
 	function Side:SetSubTitle(t)
 		SubLabel.Text = tostring(t or "")
+	end
+
+	function Side:SetTheme(name)
+		if type(name) ~= "string" or not Themes[name] then return end
+		Side.Theme = name
+		local t = Themes[name]
+		local function paint(obj, prop, key)
+			if obj and t[key] ~= nil then
+				pcall(function() obj[prop] = t[key] end)
+			end
+		end
+		paint(Panel, "BackgroundColor3", "Dialog")
+		paint(Header, "BackgroundColor3", "Element")
+		paint(TitleLabel, "TextColor3", "Text")
+		paint(SubLabel, "TextColor3", "SubText")
+		paint(Handle, "BackgroundColor3", "Dialog")
+		paint(HandleIcon, "ImageColor3", "Text")
+		paint(CloseBtn, "ImageColor3", "SubText")
+		paint(Divider, "BackgroundColor3", "ElementBorder")
 	end
 
 	function Side:Destroy()
@@ -6864,66 +6933,90 @@ function Library:CreateSidePanel(Config)
 		return Section
 	end
 
-	-- Element API (same as tabs)
 	setmetatable(Side, Elements)
 
-	-- Handle click = toggle (unless it was a drag)
-	local dragging = false
+	-- ===== Drag / tap on handle (mobile + PC safe) =====
+	local activeInput = nil
 	local dragStartY = 0
-	local handleStartY = 0
+	local startScale = handleYScale
 	local moved = false
+	local MOVE_PX = 10
 
-	Creator.AddSignal(Handle.InputBegan, function(Input)
-		if Input.UserInputType == Enum.UserInputType.MouseButton1
-			or Input.UserInputType == Enum.UserInputType.Touch
+	local function BeginDrag(Input)
+		if activeInput then return end
+		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and Input.UserInputType ~= Enum.UserInputType.Touch
 		then
-			dragging = true
-			moved = false
-			dragStartY = Input.Position.Y
-			handleStartY = Handle.AbsolutePosition.Y + Handle.AbsoluteSize.Y * 0.5
+			return
 		end
-	end)
+		activeInput = Input
+		moved = false
+		dragStartY = Input.Position.Y
+		startScale = handleYScale
+	end
 
-	Creator.AddSignal(UserInputService.InputChanged, function(Input)
-		if not dragging then return end
+	local function MoveDrag(Input)
+		if not activeInput then return end
+		if Input ~= activeInput and Input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			-- allow MouseMovement while mouse held; for touch only same input
+			if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
+				return
+			end
+		end
+		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
+			return
+		end
 		if Input.UserInputType ~= Enum.UserInputType.MouseMovement
 			and Input.UserInputType ~= Enum.UserInputType.Touch
 		then
 			return
 		end
 		local dy = Input.Position.Y - dragStartY
-		if math.abs(dy) > 6 then
+		if math.abs(dy) >= MOVE_PX then
 			moved = true
 		end
+		if not moved then return end
 		local vs = Camera.ViewportSize
-		local newY = math.clamp(handleStartY + dy, 40, vs.Y - 40)
-		local scale = newY / vs.Y
-		Handle.Position = UDim2.new(1, 0, scale, 0)
-	end)
+		local deltaScale = dy / math.max(vs.Y, 1)
+		handleYScale = math.clamp(startScale + deltaScale, 0.1, 0.9)
+		PlaceHandle()
+	end
 
-	Creator.AddSignal(UserInputService.InputEnded, function(Input)
-		if not dragging then return end
+	local function EndDrag(Input)
+		if not activeInput then return end
 		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
 			and Input.UserInputType ~= Enum.UserInputType.Touch
 		then
 			return
 		end
-		dragging = false
-		local vs = Camera.ViewportSize
-		local scale = (Handle.AbsolutePosition.Y + Handle.AbsoluteSize.Y * 0.5) / math.max(vs.Y, 1)
-		scale = math.clamp(scale, 0.08, 0.92)
-		Handle.Position = UDim2.new(1, 0, scale, 0)
-		SaveHandleY(scale)
-		if not moved then
+		-- touch: only end matching input
+		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
+			return
+		end
+		local wasMoved = moved
+		activeInput = nil
+		if wasMoved then
+			SaveHandleY(handleYScale)
+		else
 			Side:Toggle()
 		end
+	end
+
+	Creator.AddSignal(Handle.InputBegan, BeginDrag)
+	Creator.AddSignal(Handle.InputChanged, MoveDrag)
+	Creator.AddSignal(UserInputService.InputChanged, function(Input)
+		if activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
+			MoveDrag(Input)
+		end
 	end)
+	Creator.AddSignal(UserInputService.InputEnded, EndDrag)
 
 	Creator.AddSignal(CloseBtn.Activated, function()
 		Side:Hide()
 	end)
 
 	SetArrow(false)
+	PlaceHandle()
 	if DefaultOpen then
 		task.defer(function()
 			Side:Show()
