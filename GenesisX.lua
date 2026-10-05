@@ -6459,15 +6459,22 @@ function Library:CreateStatistics(Flags, Title)
 		return t[key]
 	end
 
-	-- Outer card (opaque themed fill — not pure black)
+	-- Lighter base for small HUD (Dialog lerped toward Accent so it doesn't read as pure black)
+	local function StatsFill()
+		return TC("Dialog"):Lerp(TC("Accent"), 0.22)
+	end
+	local function StatsTint()
+		return TC("AcrylicMain"):Lerp(TC("Accent"), 0.18)
+	end
+
 	local Holder = New("Frame", {
 		Name = "StatsHolder",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 14),
 		Size = UDim2.fromOffset(0, 34),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = TC("Dialog"),
-		BackgroundTransparency = 0.05,
+		BackgroundColor3 = StatsFill(),
+		BackgroundTransparency = 0.12,
 		ClipsDescendants = true,
 		Parent = statsGui,
 	}, {
@@ -6478,16 +6485,15 @@ function Library:CreateStatistics(Flags, Title)
 	local HolderStroke = New("UIStroke", {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Color = TC("Accent"),
-		Transparency = 0.25,
+		Transparency = 0.2,
 		Thickness = 1.4,
 		Parent = Holder,
 	})
 
-	-- inner tint layer
 	local HolderInner = New("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = TC("AcrylicMain"),
-		BackgroundTransparency = 0.35,
+		BackgroundColor3 = StatsTint(),
+		BackgroundTransparency = 0.55,
 		BorderSizePixel = 0,
 		Parent = Holder,
 	}, {
@@ -6497,6 +6503,10 @@ function Library:CreateStatistics(Flags, Title)
 	local HolderGrad = New("UIGradient", {
 		Rotation = 90,
 		Color = TC("AcrylicGradient"),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.15),
+			NumberSequenceKeypoint.new(1, 0.45),
+		}),
 		Parent = HolderInner,
 	})
 
@@ -6524,8 +6534,10 @@ function Library:CreateStatistics(Flags, Title)
 	})
 
 	local function ApplyStatsTheme()
-		Holder.BackgroundColor3 = TC("Dialog")
-		HolderInner.BackgroundColor3 = TC("AcrylicMain")
+		Holder.BackgroundColor3 = StatsFill()
+		Holder.BackgroundTransparency = 0.12
+		HolderInner.BackgroundColor3 = StatsTint()
+		HolderInner.BackgroundTransparency = 0.55
 		HolderStroke.Color = TC("Accent")
 		HolderGrad.Color = TC("AcrylicGradient")
 		Label.TextColor3 = TC("Text")
@@ -6534,10 +6546,9 @@ function Library:CreateStatistics(Flags, Title)
 		end)
 	end
 	Library._ApplyStatsTheme = ApplyStatsTheme
-	-- reflection
 	task.defer(function()
 		if Library.Theme == "Genesis V2" then
-			Library:_MakeShine(Holder, 8)
+			Library:_MakeShine(Holder, 8, "strong")
 		end
 	end)
 
@@ -6856,13 +6867,20 @@ function Library:CreateSidePanel(Config)
 	})
 
 	-- ===== Edge handle (visible when CLOSED only; when open, use header arrow) =====
+	local function HandleFill()
+		return TC("Dialog"):Lerp(TC("Accent"), 0.24)
+	end
+	local function HandleTint()
+		return TC("AcrylicMain"):Lerp(TC("Accent"), 0.2)
+	end
+
 	local Handle = New("TextButton", {
 		Name = "SideHandle",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, handleYScale, 0),
 		Size = UDim2.fromOffset(28, 60),
-		BackgroundColor3 = TC("Dialog"),
-		BackgroundTransparency = 0.05,
+		BackgroundColor3 = HandleFill(),
+		BackgroundTransparency = 0.1,
 		Text = "",
 		AutoButtonColor = false,
 		Active = true,
@@ -6876,8 +6894,8 @@ function Library:CreateSidePanel(Config)
 
 	local HandleInner = New("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = TC("AcrylicMain"),
-		BackgroundTransparency = 0.35,
+		BackgroundColor3 = HandleTint(),
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		Parent = Handle,
 	}, {
@@ -6886,7 +6904,7 @@ function Library:CreateSidePanel(Config)
 
 	local HandleStroke = New("UIStroke", {
 		Color = TC("Accent"),
-		Transparency = 0.3,
+		Transparency = 0.22,
 		Thickness = 1.4,
 		Parent = Handle,
 	})
@@ -6916,8 +6934,12 @@ function Library:CreateSidePanel(Config)
 		CollapseBtn.ImageColor3 = C("SubText")
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
-		Handle.BackgroundColor3 = C("Dialog")
-		if HandleInner then HandleInner.BackgroundColor3 = C("AcrylicMain") end
+		Handle.BackgroundColor3 = C("Dialog"):Lerp(C("Accent"), 0.24)
+		Handle.BackgroundTransparency = 0.1
+		if HandleInner then
+			HandleInner.BackgroundColor3 = C("AcrylicMain"):Lerp(C("Accent"), 0.2)
+			HandleInner.BackgroundTransparency = 0.5
+		end
 		HandleStroke.Color = C("Accent")
 		HandleIcon.ImageColor3 = C("Text")
 		pcall(function()
@@ -7093,11 +7115,13 @@ function Library:SetTheme(Value)
 end
 
 -- Reflection sweep used by window / stats / side panel
-function Library:_MakeShine(Host, CornerRadius)
+-- intensity: "normal" (window) | "strong" (small widgets: stats / handle)
+function Library:_MakeShine(Host, CornerRadius, Intensity)
 	if not Host then return nil end
 	CornerRadius = CornerRadius or 8
+	Intensity = Intensity or "normal"
+	local strong = Intensity == "strong"
 
-	-- remove old shine under this host
 	local old = Host:FindFirstChild("GenesisShine")
 	if old then old:Destroy() end
 
@@ -7114,14 +7138,19 @@ function Library:_MakeShine(Host, CornerRadius)
 		New("UICorner", { CornerRadius = UDim.new(0, CornerRadius) }),
 	})
 
+	-- small UIs need a wider / brighter beam so the highlight is actually visible
+	local beamW = strong and 0.75 or 0.42
+	local baseT = strong and 0.52 or 0.78
+	local peakT = strong and 0.38 or 0.74
+
 	local beam = New("Frame", {
 		Name = "ShineBeam",
-		Size = UDim2.new(0.42, 0, 1.5, 0),
-		Position = UDim2.new(-0.55, 0, -0.25, 0),
-		BackgroundColor3 = Color3.fromRGB(210, 160, 255),
-		BackgroundTransparency = 0.78,
+		Size = UDim2.new(beamW, 0, strong and 2 or 1.5, 0),
+		Position = UDim2.new(-0.7, 0, -0.4, 0),
+		BackgroundColor3 = strong and Color3.fromRGB(230, 190, 255) or Color3.fromRGB(210, 160, 255),
+		BackgroundTransparency = baseT,
 		BorderSizePixel = 0,
-		Rotation = 16,
+		Rotation = strong and 12 or 16,
 		Active = false,
 		ZIndex = 51,
 		Parent = shine,
@@ -7130,28 +7159,29 @@ function Library:_MakeShine(Host, CornerRadius)
 			Rotation = 0,
 			Transparency = NumberSequence.new({
 				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.35, 0.55),
-				NumberSequenceKeypoint.new(0.5, 0.2),
-				NumberSequenceKeypoint.new(0.65, 0.55),
+				NumberSequenceKeypoint.new(0.3, strong and 0.35 or 0.55),
+				NumberSequenceKeypoint.new(0.5, strong and 0.08 or 0.2),
+				NumberSequenceKeypoint.new(0.7, strong and 0.35 or 0.55),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
 			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 40, 255)),
-				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 200, 255)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 80, 255)),
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 70, 255)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 230, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 100, 255)),
 			}),
 		}),
 	})
 
 	local t0 = tick()
+	local speed = strong and 2.6 or 3.4
 	local conn = RunService.RenderStepped:Connect(function()
 		if not shine.Parent or not beam.Parent then
 			pcall(function() conn:Disconnect() end)
 			return
 		end
-		local alpha = ((tick() - t0) % 3.4) / 3.4
-		beam.Position = UDim2.new(-0.55 + alpha * 1.75, 0, -0.25, 0)
-		beam.BackgroundTransparency = 0.74 + math.sin(alpha * math.pi * 2) * 0.06
+		local alpha = ((tick() - t0) % speed) / speed
+		beam.Position = UDim2.new(-0.7 + alpha * 2.0, 0, -0.4, 0)
+		beam.BackgroundTransparency = peakT + math.sin(alpha * math.pi * 2) * (strong and 0.1 or 0.06)
 	end)
 
 	shine.Destroying:Connect(function()
@@ -7193,7 +7223,7 @@ function Library:_RefreshOverlayShines()
 		local old = Library._StatsHolder:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
 		if useShine then
-			Library:_MakeShine(Library._StatsHolder, 8)
+			Library:_MakeShine(Library._StatsHolder, 8, "strong")
 		end
 	end
 	-- side panel paint + handle
@@ -7201,14 +7231,14 @@ function Library:_RefreshOverlayShines()
 		local old = Library._SidePaint:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
 		if useShine then
-			Library:_MakeShine(Library._SidePaint, 8)
+			Library:_MakeShine(Library._SidePaint, 8, "normal")
 		end
 	end
 	if Library._SideHandle then
 		local old = Library._SideHandle:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
 		if useShine then
-			Library:_MakeShine(Library._SideHandle, 8)
+			Library:_MakeShine(Library._SideHandle, 8, "strong")
 		end
 	end
 end
