@@ -6460,7 +6460,7 @@ function Library:CreateStatistics(Flags, Title)
 		Position = UDim2.new(1, -16, 0, 14),
 		Size = UDim2.fromOffset(0, 28),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 0.25,
+		BackgroundTransparency = 0.18,
 		Parent = statsGui,
 		ThemeTag = {
 			BackgroundColor3 = "Dialog",
@@ -6468,9 +6468,9 @@ function Library:CreateStatistics(Flags, Title)
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 		New("UIStroke", {
-			Transparency = 0.45,
-			Thickness = 1,
-			ThemeTag = { Color = "ElementBorder" },
+			Transparency = 0.35,
+			Thickness = 1.2,
+			ThemeTag = { Color = "Accent" },
 		}),
 		New("UIPadding", {
 			PaddingLeft = UDim.new(0, 10),
@@ -6536,6 +6536,11 @@ function Library:CreateStatistics(Flags, Title)
 
 	Label.Text = BuildText()
 
+	-- apply current theme colors immediately (stats lives outside main window tree)
+	pcall(function()
+		Creator.UpdateTheme()
+	end)
+
 	Library._StatsConn = RunService.RenderStepped:Connect(function()
 		frames = frames + 1
 		local now = tick()
@@ -6558,6 +6563,7 @@ function Library:CreateStatistics(Flags, Title)
 	return statsGui
 end
 
+
 function Library:RemoveStatistics()
 	if Library._StatsConn then
 		pcall(function() Library._StatsConn:Disconnect() end)
@@ -6569,11 +6575,373 @@ function Library:RemoveStatistics()
 	end
 end
 
+--[[
+	Side mini-panel (right edge)
+	Usage:
+	  local Side = Library:CreateSidePanel({
+	    Title = "Quick",
+	    SubTitle = "Menu",
+	    Width = 270,
+	    DefaultOpen = false,
+	  })
+	  Side:AddToggle("x", { Title = "...", Default = false, Callback = function() end })
+]]
+function Library:CreateSidePanel(Config)
+	Config = Config or {}
+	local Title = tostring(Config.Title or "Panel")
+	local SubTitle = tostring(Config.SubTitle or "")
+	local Width = tonumber(Config.Width) or 270
+	Width = math.clamp(Width, 200, 360)
+	local DefaultOpen = Config.DefaultOpen == true
+
+	-- destroy previous side panel
+	if Library._SidePanelGui then
+		pcall(function() Library._SidePanelGui:Destroy() end)
+		Library._SidePanelGui = nil
+	end
+
+	local parent = GetUIParent()
+	local gui = New("ScreenGui", {
+		Name = "GenesisXYZ_SidePanel",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 999980,
+		IgnoreGuiInset = true,
+		Parent = parent,
+	})
+	pcall(function() ProtectGui(gui) end)
+	Library._SidePanelGui = gui
+
+	-- load saved handle Y (0..1 scale from top of usable area)
+	local handleYScale = 0.5
+	pcall(function()
+		if isfile and isfile("GenesisXYZ/sidepanel_handle.json") then
+			local data = httpService:JSONDecode(readfile("GenesisXYZ/sidepanel_handle.json"))
+			if type(data) == "table" and type(data.y) == "number" then
+				handleYScale = math.clamp(data.y, 0.08, 0.92)
+			end
+		end
+	end)
+
+	local function SaveHandleY(yScale)
+		pcall(function()
+			if not isfolder then return end
+			if not isfolder("GenesisXYZ") then
+				makefolder("GenesisXYZ")
+			end
+			writefile("GenesisXYZ/sidepanel_handle.json", httpService:JSONEncode({ y = yScale }))
+		end)
+	end
+
+	-- ===== Edge handle (draggable vertically) =====
+	local Handle = New("TextButton", {
+		Name = "SideHandle",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, handleYScale, 0),
+		Size = UDim2.fromOffset(28, 56),
+		BackgroundTransparency = 0.12,
+		Text = "",
+		AutoButtonColor = false,
+		Parent = gui,
+		ThemeTag = {
+			BackgroundColor3 = "Dialog",
+		},
+	}, {
+		New("UICorner", {
+			CornerRadius = UDim.new(0, 10),
+			-- only round left side visually via padding offset
+		}),
+		New("UIStroke", {
+			Transparency = 0.4,
+			Thickness = 1,
+			ThemeTag = { Color = "Accent" },
+		}),
+	})
+
+	local HandleIcon = New("ImageLabel", {
+		Name = "Arrow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(16, 16),
+		BackgroundTransparency = 1,
+		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709781939",
+		Parent = Handle,
+		ThemeTag = {
+			ImageColor3 = "Text",
+		},
+	})
+
+	-- ===== Panel (always vertical-center on right) =====
+	local Panel = New("Frame", {
+		Name = "SidePanel",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(1, 8, 0.5, 0), -- start off-screen to the right
+		Size = UDim2.fromOffset(Width, 0),
+		BackgroundTransparency = 0.08,
+		ClipsDescendants = true,
+		Parent = gui,
+		ThemeTag = {
+			BackgroundColor3 = "Dialog",
+		},
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+		New("UIStroke", {
+			Transparency = 0.35,
+			Thickness = 1.2,
+			ThemeTag = { Color = "AcrylicBorder" },
+		}),
+		New("UISizeConstraint", {
+			MinSize = Vector2.new(Width, 180),
+			MaxSize = Vector2.new(Width, 520),
+		}),
+	})
+
+	-- height ~ 62% of viewport, clamped
+	local function RefreshPanelHeight()
+		local vs = Camera.ViewportSize
+		local h = math.clamp(math.floor(vs.Y * 0.62), 220, 520)
+		Panel.Size = UDim2.fromOffset(Width, h)
+	end
+	RefreshPanelHeight()
+	pcall(function()
+		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshPanelHeight)
+	end)
+
+	-- Header (title above subtitle — no icon)
+	local Header = New("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, 54),
+		BackgroundTransparency = 1,
+		Parent = Panel,
+	})
+
+	local TitleLabel = New("TextLabel", {
+		Text = Title,
+		FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -44, 0, 20),
+		Position = UDim2.fromOffset(14, 10),
+		Parent = Header,
+		ThemeTag = { TextColor3 = "Text" },
+	})
+
+	local SubLabel = New("TextLabel", {
+		Text = SubTitle,
+		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+		TextSize = 12,
+		TextTransparency = 0.35,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -44, 0, 16),
+		Position = UDim2.fromOffset(14, 30),
+		Parent = Header,
+		ThemeTag = { TextColor3 = "SubText" },
+	})
+
+	local CloseBtn = New("ImageButton", {
+		Image = Library:GetIcon("x") or "rbxassetid://10747384394",
+		Size = UDim2.fromOffset(16, 16),
+		Position = UDim2.new(1, -28, 0, 12),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Parent = Header,
+		ThemeTag = { ImageColor3 = "SubText" },
+	})
+
+	local Divider = New("Frame", {
+		Size = UDim2.new(1, -24, 0, 1),
+		Position = UDim2.new(0.5, 0, 0, 54),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		Parent = Panel,
+		ThemeTag = { BackgroundColor3 = "ElementBorder" },
+	})
+
+	local Scroll = New("ScrollingFrame", {
+		Name = "Content",
+		Size = UDim2.new(1, -12, 1, -64),
+		Position = UDim2.fromOffset(6, 58),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		ScrollBarImageTransparency = 0.55,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ElasticBehavior = Enum.ElasticBehavior.Never,
+		Parent = Panel,
+	}, {
+		New("UIListLayout", {
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		New("UIPadding", {
+			PaddingTop = UDim.new(0, 6),
+			PaddingBottom = UDim.new(0, 12),
+			PaddingLeft = UDim.new(0, 4),
+			PaddingRight = UDim.new(0, 6),
+		}),
+	})
+
+	pcall(function()
+		Creator.UpdateTheme()
+	end)
+
+	-- ===== Open / close animation =====
+	local Side = {
+		Open = DefaultOpen,
+		Title = Title,
+		SubTitle = SubTitle,
+		Container = Scroll,
+		ScrollFrame = Scroll,
+		Root = Panel,
+		Handle = Handle,
+		Type = "SidePanel",
+	}
+
+	local function SetArrow(open)
+		-- open = chevron right (pointing to close), closed = chevron left
+		local icon = open and (Library:GetIcon("chevron-right") or "rbxassetid://10709782746")
+			or (Library:GetIcon("chevron-left") or "rbxassetid://10709781939")
+		HandleIcon.Image = icon
+	end
+
+	function Side:Show()
+		Side.Open = true
+		SetArrow(true)
+		TweenService:Create(
+			Panel,
+			TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(1, -(Width + 12), 0.5, 0) }
+		):Play()
+	end
+
+	function Side:Hide()
+		Side.Open = false
+		SetArrow(false)
+		TweenService:Create(
+			Panel,
+			TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+			{ Position = UDim2.new(1, 8, 0.5, 0) }
+		):Play()
+	end
+
+	function Side:Toggle()
+		if Side.Open then
+			Side:Hide()
+		else
+			Side:Show()
+		end
+	end
+
+	function Side:SetTitle(t)
+		TitleLabel.Text = tostring(t or "")
+	end
+
+	function Side:SetSubTitle(t)
+		SubLabel.Text = tostring(t or "")
+	end
+
+	function Side:Destroy()
+		pcall(function() gui:Destroy() end)
+		if Library._SidePanelGui == gui then
+			Library._SidePanelGui = nil
+		end
+	end
+
+	function Side:AddSection(SectionTitle, Icon)
+		local Section = { Type = "Section" }
+		local SectionFrame = Components.Section(SectionTitle, Scroll, Icon)
+		Section.Container = SectionFrame.Container
+		Section.ScrollFrame = Scroll
+		Section.Root = SectionFrame.Root
+		setmetatable(Section, Elements)
+		return Section
+	end
+
+	-- Element API (same as tabs)
+	setmetatable(Side, Elements)
+
+	-- Handle click = toggle (unless it was a drag)
+	local dragging = false
+	local dragStartY = 0
+	local handleStartY = 0
+	local moved = false
+
+	Creator.AddSignal(Handle.InputBegan, function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton1
+			or Input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = true
+			moved = false
+			dragStartY = Input.Position.Y
+			handleStartY = Handle.AbsolutePosition.Y + Handle.AbsoluteSize.Y * 0.5
+		end
+	end)
+
+	Creator.AddSignal(UserInputService.InputChanged, function(Input)
+		if not dragging then return end
+		if Input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and Input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		local dy = Input.Position.Y - dragStartY
+		if math.abs(dy) > 6 then
+			moved = true
+		end
+		local vs = Camera.ViewportSize
+		local newY = math.clamp(handleStartY + dy, 40, vs.Y - 40)
+		local scale = newY / vs.Y
+		Handle.Position = UDim2.new(1, 0, scale, 0)
+	end)
+
+	Creator.AddSignal(UserInputService.InputEnded, function(Input)
+		if not dragging then return end
+		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and Input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		dragging = false
+		local vs = Camera.ViewportSize
+		local scale = (Handle.AbsolutePosition.Y + Handle.AbsoluteSize.Y * 0.5) / math.max(vs.Y, 1)
+		scale = math.clamp(scale, 0.08, 0.92)
+		Handle.Position = UDim2.new(1, 0, scale, 0)
+		SaveHandleY(scale)
+		if not moved then
+			Side:Toggle()
+		end
+	end)
+
+	Creator.AddSignal(CloseBtn.Activated, function()
+		Side:Hide()
+	end)
+
+	SetArrow(false)
+	if DefaultOpen then
+		task.defer(function()
+			Side:Show()
+		end)
+	end
+
+	Library.SidePanel = Side
+	return Side
+end
+
+
 function Library:SetTheme(Value)
-	if Library.Window and table.find(Library.Themes, Value) then
+	if table.find(Library.Themes, Value) then
 		Library.Theme = Value
 		Creator.UpdateTheme()
-		Library:_UpdateV2Shine()
+		pcall(function()
+			Library:_UpdateV2Shine()
+		end)
 	end
 end
 
