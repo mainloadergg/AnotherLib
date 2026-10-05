@@ -6459,39 +6459,52 @@ function Library:CreateStatistics(Flags, Title)
 		return t[key]
 	end
 
-	-- Match main UI acrylic card look (forced theme colors — no broken ThemeTag-only)
+	-- Outer card (opaque themed fill — not pure black)
 	local Holder = New("Frame", {
 		Name = "StatsHolder",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(0, 32),
+		Size = UDim2.fromOffset(0, 34),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = TC("AcrylicMain"),
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = TC("Dialog"),
+		BackgroundTransparency = 0.05,
+		ClipsDescendants = true,
 		Parent = statsGui,
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 	})
+	Library._StatsHolder = Holder
 
 	local HolderStroke = New("UIStroke", {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Color = TC("AcrylicBorder"),
-		Transparency = 0.35,
-		Thickness = 1,
+		Color = TC("Accent"),
+		Transparency = 0.25,
+		Thickness = 1.4,
 		Parent = Holder,
+	})
+
+	-- inner tint layer
+	local HolderInner = New("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = TC("AcrylicMain"),
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		Parent = Holder,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 	})
 
 	local HolderGrad = New("UIGradient", {
 		Rotation = 90,
 		Color = TC("AcrylicGradient"),
-		Parent = Holder,
+		Parent = HolderInner,
 	})
 
 	New("UIPadding", {
 		PaddingLeft = UDim.new(0, 12),
 		PaddingRight = UDim.new(0, 12),
-		PaddingTop = UDim.new(0, 6),
-		PaddingBottom = UDim.new(0, 6),
+		PaddingTop = UDim.new(0, 7),
+		PaddingBottom = UDim.new(0, 7),
 		Parent = Holder,
 	})
 
@@ -6507,16 +6520,26 @@ function Library:CreateStatistics(Flags, Title)
 		TextColor3 = TC("Text"),
 		Text = statsTitle,
 		Parent = Holder,
-		ZIndex = 2,
+		ZIndex = 5,
 	})
 
 	local function ApplyStatsTheme()
-		Holder.BackgroundColor3 = TC("AcrylicMain")
-		HolderStroke.Color = TC("AcrylicBorder")
+		Holder.BackgroundColor3 = TC("Dialog")
+		HolderInner.BackgroundColor3 = TC("AcrylicMain")
+		HolderStroke.Color = TC("Accent")
 		HolderGrad.Color = TC("AcrylicGradient")
 		Label.TextColor3 = TC("Text")
+		pcall(function()
+			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
+		end)
 	end
 	Library._ApplyStatsTheme = ApplyStatsTheme
+	-- reflection
+	task.defer(function()
+		if Library.Theme == "Genesis V2" then
+			Library:_MakeShine(Holder, 8)
+		end
+	end)
 
 	local StatsService = game:GetService("Stats")
 	local fps, ping = 60, 0
@@ -6731,10 +6754,20 @@ function Library:CreateSidePanel(Config)
 	local PaintStroke = New("UIStroke", {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Color = TC("AcrylicBorder"),
-		Transparency = 0.4,
-		Thickness = 1,
+		Transparency = 0.25,
+		Thickness = 1.5,
 		Parent = Paint,
 	})
+	-- extra outer accent rim (same idea as main window border)
+	local PaintAccent = New("UIStroke", {
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = TC("Accent"),
+		Transparency = 0.55,
+		Thickness = 1,
+		Parent = Panel,
+	})
+	New("UICorner", { CornerRadius = UDim.new(0, 8), Parent = Panel })
+	Library._SidePaint = Paint
 
 	-- Header (title / subtitle) — like TitleBar, no X
 	local Header = New("Frame", {
@@ -6828,21 +6861,33 @@ function Library:CreateSidePanel(Config)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, handleYScale, 0),
 		Size = UDim2.fromOffset(28, 60),
-		BackgroundColor3 = TC("AcrylicMain"),
-		BackgroundTransparency = 0.12,
+		BackgroundColor3 = TC("Dialog"),
+		BackgroundTransparency = 0.05,
 		Text = "",
 		AutoButtonColor = false,
 		Active = true,
+		ClipsDescendants = true,
 		ZIndex = 20,
 		Parent = gui,
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
 	})
+	Library._SideHandle = Handle
+
+	local HandleInner = New("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = TC("AcrylicMain"),
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		Parent = Handle,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
 
 	local HandleStroke = New("UIStroke", {
-		Color = TC("AcrylicBorder"),
-		Transparency = 0.35,
-		Thickness = 1,
+		Color = TC("Accent"),
+		Transparency = 0.3,
+		Thickness = 1.4,
 		Parent = Handle,
 	})
 
@@ -6865,17 +6910,25 @@ function Library:CreateSidePanel(Config)
 		PaintBg.BackgroundColor3 = C("AcrylicMain")
 		PaintGrad.Color = C("AcrylicGradient")
 		PaintStroke.Color = C("AcrylicBorder")
+		if PaintAccent then PaintAccent.Color = C("Accent") end
 		TitleLabel.TextColor3 = C("Text")
 		SubLabel.TextColor3 = C("SubText")
 		CollapseBtn.ImageColor3 = C("SubText")
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
-		Handle.BackgroundColor3 = C("AcrylicMain")
-		HandleStroke.Color = C("AcrylicBorder")
+		Handle.BackgroundColor3 = C("Dialog")
+		if HandleInner then HandleInner.BackgroundColor3 = C("AcrylicMain") end
+		HandleStroke.Color = C("Accent")
 		HandleIcon.ImageColor3 = C("Text")
+		pcall(function()
+			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
+		end)
 	end
 	Library._ApplySideTheme = ApplySideTheme
 	ApplySideTheme()
+	task.defer(function()
+		if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
+	end)
 
 	local Side = {
 		Open = false,
@@ -7039,12 +7092,77 @@ function Library:SetTheme(Value)
 	end
 end
 
--- Moving pure-purple reflection sweep for Genesis V2
-function Library:_UpdateV2Shine()
-	local Window = Library.Window
-	if not Window or not Window.Root then return end
+-- Reflection sweep used by window / stats / side panel
+function Library:_MakeShine(Host, CornerRadius)
+	if not Host then return nil end
+	CornerRadius = CornerRadius or 8
 
-	-- stop previous
+	-- remove old shine under this host
+	local old = Host:FindFirstChild("GenesisShine")
+	if old then old:Destroy() end
+
+	local shine = New("Frame", {
+		Name = "GenesisShine",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0, 0),
+		ZIndex = 50,
+		ClipsDescendants = true,
+		Active = false,
+		Parent = Host,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, CornerRadius) }),
+	})
+
+	local beam = New("Frame", {
+		Name = "ShineBeam",
+		Size = UDim2.new(0.42, 0, 1.5, 0),
+		Position = UDim2.new(-0.55, 0, -0.25, 0),
+		BackgroundColor3 = Color3.fromRGB(210, 160, 255),
+		BackgroundTransparency = 0.78,
+		BorderSizePixel = 0,
+		Rotation = 16,
+		Active = false,
+		ZIndex = 51,
+		Parent = shine,
+	}, {
+		New("UIGradient", {
+			Rotation = 0,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.35, 0.55),
+				NumberSequenceKeypoint.new(0.5, 0.2),
+				NumberSequenceKeypoint.new(0.65, 0.55),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 40, 255)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 200, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 80, 255)),
+			}),
+		}),
+	})
+
+	local t0 = tick()
+	local conn = RunService.RenderStepped:Connect(function()
+		if not shine.Parent or not beam.Parent then
+			pcall(function() conn:Disconnect() end)
+			return
+		end
+		local alpha = ((tick() - t0) % 3.4) / 3.4
+		beam.Position = UDim2.new(-0.55 + alpha * 1.75, 0, -0.25, 0)
+		beam.BackgroundTransparency = 0.74 + math.sin(alpha * math.pi * 2) * 0.06
+	end)
+
+	shine.Destroying:Connect(function()
+		pcall(function() conn:Disconnect() end)
+	end)
+
+	return shine
+end
+
+function Library:_UpdateV2Shine()
+	-- window shine
 	if Library._V2ShineConn then
 		pcall(function() Library._V2ShineConn:Disconnect() end)
 		Library._V2ShineConn = nil
@@ -7054,73 +7172,47 @@ function Library:_UpdateV2Shine()
 		Library._V2ShineFrame = nil
 	end
 
-	if Library.Theme ~= "Genesis V2" then
-		return
+	local useShine = (Library.Theme == "Genesis V2")
+	if useShine and Library.Window and Library.Window.Root then
+		local host = (Library.Window.AcrylicPaint and Library.Window.AcrylicPaint.Frame) or Library.Window.Root
+		Library._V2ShineFrame = Library:_MakeShine(host, 8)
 	end
 
-	local root = Window.Root
-	local host = (Window.AcrylicPaint and Window.AcrylicPaint.Frame) or root
-
-	local shine = New("Frame", {
-		Name = "GenesisV2Shine",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		Position = UDim2.fromScale(0, 0),
-		ZIndex = 8,
-		ClipsDescendants = true,
-		Active = false,
-		Parent = host,
-	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
-	})
-
-	local beam = New("Frame", {
-		Name = "ShineBeam",
-		Size = UDim2.new(0.45, 0, 1.4, 0),
-		Position = UDim2.new(-0.5, 0, -0.2, 0),
-		BackgroundColor3 = Color3.fromRGB(200, 140, 255),
-		BackgroundTransparency = 0.82,
-		BorderSizePixel = 0,
-		Rotation = 18,
-		Active = false,
-		Parent = shine,
-	}, {
-		New("UIGradient", {
-			Rotation = 0,
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.35, 0.55),
-				NumberSequenceKeypoint.new(0.5, 0.25),
-				NumberSequenceKeypoint.new(0.65, 0.55),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 40, 255)),
-				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(230, 190, 255)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 80, 255)),
-			}),
-		}),
-	})
-
-	Library._V2ShineFrame = shine
-
-	local t0 = tick()
-	Library._V2ShineConn = RunService.RenderStepped:Connect(function()
-		if not shine.Parent or not beam.Parent then
-			if Library._V2ShineConn then
-				Library._V2ShineConn:Disconnect()
-				Library._V2ShineConn = nil
-			end
-			return
+	-- stats + side panel shimmers refresh with theme
+	pcall(function()
+		if Library._RefreshOverlayShines then
+			Library._RefreshOverlayShines()
 		end
-		-- sweep left -> right, loop
-		local cycle = (tick() - t0) % 3.6
-		local alpha = cycle / 3.6 -- 0..1
-		beam.Position = UDim2.new(-0.55 + alpha * 1.7, 0, -0.2, 0)
-		-- subtle pulse on acrylic border feel
-		beam.BackgroundTransparency = 0.78 + math.sin(alpha * math.pi * 2) * 0.06
 	end)
 end
+
+function Library:_RefreshOverlayShines()
+	local useShine = (Library.Theme == "Genesis V2")
+	-- stats
+	if Library._StatsHolder then
+		local old = Library._StatsHolder:FindFirstChild("GenesisShine")
+		if old then old:Destroy() end
+		if useShine then
+			Library:_MakeShine(Library._StatsHolder, 8)
+		end
+	end
+	-- side panel paint + handle
+	if Library._SidePaint then
+		local old = Library._SidePaint:FindFirstChild("GenesisShine")
+		if old then old:Destroy() end
+		if useShine then
+			Library:_MakeShine(Library._SidePaint, 8)
+		end
+	end
+	if Library._SideHandle then
+		local old = Library._SideHandle:FindFirstChild("GenesisShine")
+		if old then old:Destroy() end
+		if useShine then
+			Library:_MakeShine(Library._SideHandle, 8)
+		end
+	end
+end
+
 
 function Library:Destroy()
 	if Library.Window then
