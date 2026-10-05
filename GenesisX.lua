@@ -6454,52 +6454,69 @@ function Library:CreateStatistics(Flags, Title)
 	pcall(function() ProtectGui(statsGui) end)
 	Library._StatsGui = statsGui
 
+	local function TC(key)
+		local t = Themes[Library.Theme] or Themes.GenesisX
+		return t[key]
+	end
+
+	-- Match main UI acrylic card look (forced theme colors — no broken ThemeTag-only)
 	local Holder = New("Frame", {
 		Name = "StatsHolder",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(0, 30),
+		Size = UDim2.fromOffset(0, 32),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 0.08,
+		BackgroundColor3 = TC("AcrylicMain"),
+		BackgroundTransparency = 0.15,
 		Parent = statsGui,
-		ThemeTag = {
-			BackgroundColor3 = "AcrylicMain",
-		},
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
-		New("UIStroke", {
-			Transparency = 0.3,
-			Thickness = 1.2,
-			ThemeTag = { Color = "Accent" },
-		}),
-		New("UIGradient", {
-			Rotation = 90,
-			ThemeTag = { Color = "AcrylicGradient" },
-		}),
-		New("UIPadding", {
-			PaddingLeft = UDim.new(0, 12),
-			PaddingRight = UDim.new(0, 12),
-			PaddingTop = UDim.new(0, 5),
-			PaddingBottom = UDim.new(0, 5),
-		}),
+	})
+
+	local HolderStroke = New("UIStroke", {
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = TC("AcrylicBorder"),
+		Transparency = 0.35,
+		Thickness = 1,
+		Parent = Holder,
+	})
+
+	local HolderGrad = New("UIGradient", {
+		Rotation = 90,
+		Color = TC("AcrylicGradient"),
+		Parent = Holder,
+	})
+
+	New("UIPadding", {
+		PaddingLeft = UDim.new(0, 12),
+		PaddingRight = UDim.new(0, 12),
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 6),
+		Parent = Holder,
 	})
 
 	local Label = New("TextLabel", {
 		Name = "StatsLabel",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(0, 20),
+		Size = UDim2.fromOffset(0, 18),
 		AutomaticSize = Enum.AutomaticSize.X,
 		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
+		TextColor3 = TC("Text"),
 		Text = statsTitle,
 		Parent = Holder,
 		ZIndex = 2,
-		ThemeTag = {
-			TextColor3 = "Text",
-		},
 	})
+
+	local function ApplyStatsTheme()
+		Holder.BackgroundColor3 = TC("AcrylicMain")
+		HolderStroke.Color = TC("AcrylicBorder")
+		HolderGrad.Color = TC("AcrylicGradient")
+		Label.TextColor3 = TC("Text")
+	end
+	Library._ApplyStatsTheme = ApplyStatsTheme
 
 	local StatsService = game:GetService("Stats")
 	local fps, ping = 60, 0
@@ -6591,17 +6608,25 @@ end
 	    Theme = "Genesis V2", -- optional
 	  })
 ]]
+--[[
+	Side mini-panel — same visual language as main window
+	  local Side = Library:CreateSidePanel({
+	    Title = "Quick",
+	    SubTitle = "Menu",
+	    Width = 280,
+	    Theme = "Genesis V2", -- optional
+	    DefaultOpen = false,
+	  })
+]]
 function Library:CreateSidePanel(Config)
 	Config = Config or {}
 	local Title = tostring(Config.Title or "Panel")
 	local SubTitle = tostring(Config.SubTitle or "")
-	local Width = math.clamp(tonumber(Config.Width) or 270, 200, 360)
+	local Width = math.clamp(tonumber(Config.Width) or 280, 220, 380)
 	local DefaultOpen = Config.DefaultOpen == true
-	local sideTheme = Config.Theme
-	if type(sideTheme) == "string" and Themes[sideTheme] then
-		-- ok
-	else
-		sideTheme = Library.Theme
+	local sideThemeName = Config.Theme
+	if type(sideThemeName) ~= "string" or not Themes[sideThemeName] then
+		sideThemeName = Library.Theme
 	end
 
 	if Library._SidePanelGui then
@@ -6609,9 +6634,10 @@ function Library:CreateSidePanel(Config)
 		Library._SidePanelGui = nil
 	end
 
-	-- temporarily apply panel theme so ThemeTags pick correct colors
-	local prevTheme = Library.Theme
-	Library.Theme = sideTheme
+	local function TC(key)
+		local t = Themes[sideThemeName] or Themes[Library.Theme] or Themes.GenesisX
+		return t[key]
+	end
 
 	local parent = GetUIParent()
 	local gui = New("ScreenGui", {
@@ -6630,128 +6656,153 @@ function Library:CreateSidePanel(Config)
 		if isfile and isfile("GenesisXYZ/sidepanel_handle.json") then
 			local data = httpService:JSONDecode(readfile("GenesisXYZ/sidepanel_handle.json"))
 			if type(data) == "table" and type(data.y) == "number" then
-				handleYScale = math.clamp(data.y, 0.1, 0.9)
+				handleYScale = math.clamp(data.y, 0.12, 0.88)
 			end
 		end
 	end)
 
-	local function SaveHandleY(yScale)
+	local function SaveHandleY(y)
 		pcall(function()
 			if not isfolder then return end
 			if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
-			writefile("GenesisXYZ/sidepanel_handle.json", httpService:JSONEncode({ y = yScale }))
+			writefile("GenesisXYZ/sidepanel_handle.json", httpService:JSONEncode({ y = y }))
 		end)
 	end
 
-	-- ===== Panel (center-right) =====
+	-- ===== Panel shell (same structure as AcrylicPaint) =====
 	local Panel = New("Frame", {
 		Name = "SidePanel",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(1, 16, 0.5, 0),
-		Size = UDim2.fromOffset(Width, 320),
-		BackgroundTransparency = 0.05,
+		Position = UDim2.new(1, 20, 0.5, 0),
+		Size = UDim2.fromOffset(Width, 360),
+		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		Parent = gui,
-		ThemeTag = { BackgroundColor3 = "Dialog" },
-	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		New("UIStroke", {
-			Transparency = 0.3,
-			Thickness = 1.2,
-			ThemeTag = { Color = "AcrylicBorder" },
-		}),
-		New("UIGradient", {
-			Rotation = 90,
-			ThemeTag = { Color = "AcrylicGradient" },
-		}),
 	})
 
-	local function RefreshPanelHeight()
+	local function RefreshH()
 		local vs = Camera.ViewportSize
-		local h = math.clamp(math.floor(vs.Y * 0.62), 240, 520)
-		Panel.Size = UDim2.fromOffset(Width, h)
+		Panel.Size = UDim2.fromOffset(Width, math.clamp(math.floor(vs.Y * 0.64), 260, 540))
 	end
-	RefreshPanelHeight()
+	RefreshH()
 	pcall(function()
-		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshPanelHeight)
+		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshH)
 	end)
 
-	-- solid header bar (readable over gradient)
+	-- acrylic-like layers
+	local Paint = New("Frame", {
+		Name = "Paint",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 0.9,
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BorderSizePixel = 0,
+		Parent = Panel,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+
+	local PaintBg = New("Frame", {
+		Name = "Background",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 0.2,
+		BackgroundColor3 = TC("AcrylicMain"),
+		BorderSizePixel = 0,
+		Parent = Paint,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+
+	local PaintGradFrame = New("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		Parent = Paint,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+
+	local PaintGrad = New("UIGradient", {
+		Rotation = 90,
+		Color = TC("AcrylicGradient"),
+		Parent = PaintGradFrame,
+	})
+
+	local PaintStroke = New("UIStroke", {
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = TC("AcrylicBorder"),
+		Transparency = 0.4,
+		Thickness = 1,
+		Parent = Paint,
+	})
+
+	-- Header (title / subtitle) — like TitleBar, no X
 	local Header = New("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 56),
-		BackgroundTransparency = 0.25,
+		Size = UDim2.new(1, 0, 0, 48),
+		BackgroundTransparency = 1,
 		Parent = Panel,
-		ThemeTag = { BackgroundColor3 = "Element" },
-	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		New("Frame", {
-			Size = UDim2.new(1, 0, 0, 14),
-			Position = UDim2.new(0, 0, 1, -14),
-			BorderSizePixel = 0,
-			BackgroundTransparency = 0,
-			ThemeTag = { BackgroundColor3 = "Element" },
-		}),
 	})
 
 	local TitleLabel = New("TextLabel", {
 		Text = Title,
-		FontFace = Font.new("rbxassetid://12187365364", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-		TextSize = 15,
+		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -48, 0, 20),
-		Position = UDim2.fromOffset(14, 10),
-		ZIndex = 2,
+		TextColor3 = TC("Text"),
+		Size = UDim2.new(1, -48, 0, 18),
+		Position = UDim2.fromOffset(14, 8),
 		Parent = Header,
-		ThemeTag = { TextColor3 = "Text" },
 	})
 
 	local SubLabel = New("TextLabel", {
 		Text = SubTitle,
 		FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
 		TextSize = 12,
-		TextTransparency = 0.3,
+		TextTransparency = 0.35,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundTransparency = 1,
+		TextColor3 = TC("SubText"),
 		Size = UDim2.new(1, -48, 0, 16),
-		Position = UDim2.fromOffset(14, 32),
-		ZIndex = 2,
+		Position = UDim2.fromOffset(14, 28),
 		Parent = Header,
-		ThemeTag = { TextColor3 = "SubText" },
 	})
 
-	local CloseBtn = New("ImageButton", {
-		Image = Library:GetIcon("x") or "rbxassetid://10747384394",
-		Size = UDim2.fromOffset(16, 16),
-		Position = UDim2.new(1, -28, 0, 12),
+	-- Right arrow in header = close (not X)
+	local CollapseBtn = New("ImageButton", {
+		Name = "Collapse",
+		Image = Library:GetIcon("chevron-right") or "rbxassetid://10709791437",
+		Size = UDim2.fromOffset(18, 18),
+		Position = UDim2.new(1, -32, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundTransparency = 1,
 		AutoButtonColor = false,
-		ZIndex = 3,
+		ImageColor3 = TC("SubText"),
 		Parent = Header,
-		ThemeTag = { ImageColor3 = "SubText" },
 	})
 
 	local Divider = New("Frame", {
-		Size = UDim2.new(1, -24, 0, 1),
-		Position = UDim2.new(0.5, 0, 0, 56),
+		Size = UDim2.new(1, -20, 0, 1),
+		Position = UDim2.new(0.5, 0, 0, 48),
 		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundTransparency = 0.5,
+		BackgroundColor3 = TC("TitleBarLine"),
+		BackgroundTransparency = 0.45,
 		BorderSizePixel = 0,
 		Parent = Panel,
-		ThemeTag = { BackgroundColor3 = "ElementBorder" },
 	})
 
 	local Scroll = New("ScrollingFrame", {
 		Name = "Content",
-		Size = UDim2.new(1, -12, 1, -68),
-		Position = UDim2.fromOffset(6, 62),
+		Size = UDim2.new(1, -12, 1, -56),
+		Position = UDim2.fromOffset(6, 52),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		ScrollBarImageTransparency = 0.5,
+		ScrollBarThickness = 3,
+		ScrollBarImageTransparency = 0.6,
+		ScrollBarImageColor3 = TC("Accent"),
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -6771,75 +6822,66 @@ function Library:CreateSidePanel(Config)
 		}),
 	})
 
-	-- ===== Handle (always visible; sits on panel left when open) =====
+	-- ===== Edge handle (visible when CLOSED only; when open, use header arrow) =====
 	local Handle = New("TextButton", {
 		Name = "SideHandle",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, handleYScale, 0),
-		Size = UDim2.fromOffset(30, 64),
-		BackgroundTransparency = 0.06,
+		Size = UDim2.fromOffset(28, 60),
+		BackgroundColor3 = TC("AcrylicMain"),
+		BackgroundTransparency = 0.12,
 		Text = "",
 		AutoButtonColor = false,
 		Active = true,
-		Selectable = true,
-		ZIndex = 10,
+		ZIndex = 20,
 		Parent = gui,
-		ThemeTag = { BackgroundColor3 = "Dialog" },
 	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 10) }),
-		New("UIStroke", {
-			Transparency = 0.3,
-			Thickness = 1.2,
-			ThemeTag = { Color = "Accent" },
-		}),
-		New("UIGradient", {
-			Rotation = 90,
-			ThemeTag = { Color = "AcrylicGradient" },
-		}),
+		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+	})
+
+	local HandleStroke = New("UIStroke", {
+		Color = TC("AcrylicBorder"),
+		Transparency = 0.35,
+		Thickness = 1,
+		Parent = Handle,
 	})
 
 	local HandleIcon = New("ImageLabel", {
-		Name = "Arrow",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(16, 16),
 		BackgroundTransparency = 1,
-		ZIndex = 11,
 		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709791281",
+		ImageColor3 = TC("Text"),
+		ZIndex = 21,
 		Parent = Handle,
-		ThemeTag = { ImageColor3 = "Text" },
 	})
 
-	pcall(function() Creator.UpdateTheme() end)
-
-	-- restore global theme (side panel objects already registered with sideTheme colors;
-	-- next global SetTheme will recolor them — acceptable, or freeze by not using ThemeTag updates)
-	Library.Theme = prevTheme
-	pcall(function() Creator.UpdateTheme() end)
-	-- re-apply side theme colors onto our registered objects by switching once more briefly
-	-- Actually after restore, UpdateTheme paints everything with prevTheme — good if sideTheme == Library.Theme.
-	-- If Config.Theme was different, force side colors now:
-	if sideTheme ~= prevTheme and Themes[sideTheme] then
-		local function paint(obj, prop, key)
-			if obj and Themes[sideTheme][key] ~= nil then
-				pcall(function() obj[prop] = Themes[sideTheme][key] end)
-			end
-		end
-		paint(Panel, "BackgroundColor3", "Dialog")
-		paint(Header, "BackgroundColor3", "Element")
-		paint(TitleLabel, "TextColor3", "Text")
-		paint(SubLabel, "TextColor3", "SubText")
-		paint(Handle, "BackgroundColor3", "Dialog")
-		paint(HandleIcon, "ImageColor3", "Text")
-		paint(CloseBtn, "ImageColor3", "SubText")
-		paint(Divider, "BackgroundColor3", "ElementBorder")
+	local function ApplySideTheme()
+		local tname = sideThemeName
+		if not Themes[tname] then tname = Library.Theme end
+		local t = Themes[tname] or Themes.GenesisX
+		local function C(k) return t[k] end
+		PaintBg.BackgroundColor3 = C("AcrylicMain")
+		PaintGrad.Color = C("AcrylicGradient")
+		PaintStroke.Color = C("AcrylicBorder")
+		TitleLabel.TextColor3 = C("Text")
+		SubLabel.TextColor3 = C("SubText")
+		CollapseBtn.ImageColor3 = C("SubText")
+		Divider.BackgroundColor3 = C("TitleBarLine")
+		Scroll.ScrollBarImageColor3 = C("Accent")
+		Handle.BackgroundColor3 = C("AcrylicMain")
+		HandleStroke.Color = C("AcrylicBorder")
+		HandleIcon.ImageColor3 = C("Text")
 	end
+	Library._ApplySideTheme = ApplySideTheme
+	ApplySideTheme()
 
 	local Side = {
 		Open = false,
 		Title = Title,
 		SubTitle = SubTitle,
-		Theme = sideTheme,
+		Theme = sideThemeName,
 		Container = Scroll,
 		ScrollFrame = Scroll,
 		Root = Panel,
@@ -6847,80 +6889,59 @@ function Library:CreateSidePanel(Config)
 		Type = "SidePanel",
 	}
 
-	local function SetArrow(open)
-		HandleIcon.Image = open
-			and (Library:GetIcon("chevron-right") or "rbxassetid://10709791437")
-			or (Library:GetIcon("chevron-left") or "rbxassetid://10709791281")
-	end
-
 	local function PlaceHandle()
-		-- keep handle always visible
 		if Side.Open then
-			-- docked to left edge of open panel
-			Handle.Position = UDim2.new(1, -(Width + 12), handleYScale, 0)
+			-- hide edge handle while open — header arrow closes
+			Handle.Visible = false
 		else
+			Handle.Visible = true
 			Handle.Position = UDim2.new(1, 0, handleYScale, 0)
 		end
 	end
 
 	function Side:Show()
 		Side.Open = true
-		SetArrow(true)
 		PlaceHandle()
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-			{ Position = UDim2.new(1, -(Width + 12), 0.5, 0) }
+			{ Position = UDim2.new(1, -(Width + 14), 0.5, 0) }
 		):Play()
 	end
 
 	function Side:Hide()
 		Side.Open = false
-		SetArrow(false)
-		PlaceHandle()
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
-			{ Position = UDim2.new(1, 16, 0.5, 0) }
+			{ Position = UDim2.new(1, 20, 0.5, 0) }
 		):Play()
+		task.delay(0.12, function()
+			if not Side.Open then
+				PlaceHandle()
+			end
+		end)
 	end
 
 	function Side:Toggle()
 		if Side.Open then Side:Hide() else Side:Show() end
 	end
 
-	function Side:SetTitle(t)
-		TitleLabel.Text = tostring(t or "")
-	end
-
-	function Side:SetSubTitle(t)
-		SubLabel.Text = tostring(t or "")
-	end
+	function Side:SetTitle(t) TitleLabel.Text = tostring(t or "") end
+	function Side:SetSubTitle(t) SubLabel.Text = tostring(t or "") end
 
 	function Side:SetTheme(name)
-		if type(name) ~= "string" or not Themes[name] then return end
-		Side.Theme = name
-		local t = Themes[name]
-		local function paint(obj, prop, key)
-			if obj and t[key] ~= nil then
-				pcall(function() obj[prop] = t[key] end)
-			end
+		if type(name) == "string" and Themes[name] then
+			sideThemeName = name
+			Side.Theme = name
+			ApplySideTheme()
 		end
-		paint(Panel, "BackgroundColor3", "Dialog")
-		paint(Header, "BackgroundColor3", "Element")
-		paint(TitleLabel, "TextColor3", "Text")
-		paint(SubLabel, "TextColor3", "SubText")
-		paint(Handle, "BackgroundColor3", "Dialog")
-		paint(HandleIcon, "ImageColor3", "Text")
-		paint(CloseBtn, "ImageColor3", "SubText")
-		paint(Divider, "BackgroundColor3", "ElementBorder")
 	end
 
 	function Side:Destroy()
 		pcall(function() gui:Destroy() end)
-		if Library._SidePanelGui == gui then
-			Library._SidePanelGui = nil
-		end
+		if Library._SidePanelGui == gui then Library._SidePanelGui = nil end
+		Library._ApplySideTheme = nil
 	end
 
 	function Side:AddSection(SectionTitle, Icon)
@@ -6935,92 +6956,62 @@ function Library:CreateSidePanel(Config)
 
 	setmetatable(Side, Elements)
 
-	-- ===== Drag / tap on handle (mobile + PC safe) =====
-	local activeInput = nil
-	local dragStartY = 0
-	local startScale = handleYScale
-	local moved = false
+	-- Header arrow closes panel
+	Creator.AddSignal(CollapseBtn.Activated, function()
+		Side:Hide()
+	end)
+
+	-- Handle drag / tap (closed state)
+	local activeInput, dragStartY, startScale, moved = nil, 0, handleYScale, false
 	local MOVE_PX = 10
 
-	local function BeginDrag(Input)
-		if activeInput then return end
+	Creator.AddSignal(Handle.InputBegan, function(Input)
 		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and Input.UserInputType ~= Enum.UserInputType.Touch
-		then
-			return
-		end
+			and Input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if activeInput then return end
 		activeInput = Input
 		moved = false
 		dragStartY = Input.Position.Y
 		startScale = handleYScale
-	end
+	end)
 
-	local function MoveDrag(Input)
+	local function onMove(Input)
 		if not activeInput then return end
-		if Input ~= activeInput and Input.UserInputType ~= Enum.UserInputType.MouseMovement then
-			-- allow MouseMovement while mouse held; for touch only same input
-			if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
-				return
-			end
-		end
-		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
-			return
-		end
+		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then return end
 		if Input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and Input.UserInputType ~= Enum.UserInputType.Touch
-		then
-			return
-		end
+			and Input.UserInputType ~= Enum.UserInputType.Touch then return end
 		local dy = Input.Position.Y - dragStartY
-		if math.abs(dy) >= MOVE_PX then
-			moved = true
-		end
+		if math.abs(dy) >= MOVE_PX then moved = true end
 		if not moved then return end
 		local vs = Camera.ViewportSize
-		local deltaScale = dy / math.max(vs.Y, 1)
-		handleYScale = math.clamp(startScale + deltaScale, 0.1, 0.9)
-		PlaceHandle()
+		handleYScale = math.clamp(startScale + dy / math.max(vs.Y, 1), 0.12, 0.88)
+		Handle.Position = UDim2.new(1, 0, handleYScale, 0)
 	end
 
-	local function EndDrag(Input)
-		if not activeInput then return end
-		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and Input.UserInputType ~= Enum.UserInputType.Touch
-		then
-			return
-		end
-		-- touch: only end matching input
-		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then
-			return
-		end
-		local wasMoved = moved
-		activeInput = nil
-		if wasMoved then
-			SaveHandleY(handleYScale)
-		else
-			Side:Toggle()
-		end
-	end
-
-	Creator.AddSignal(Handle.InputBegan, BeginDrag)
-	Creator.AddSignal(Handle.InputChanged, MoveDrag)
+	Creator.AddSignal(Handle.InputChanged, onMove)
 	Creator.AddSignal(UserInputService.InputChanged, function(Input)
 		if activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
-			MoveDrag(Input)
+			onMove(Input)
 		end
 	end)
-	Creator.AddSignal(UserInputService.InputEnded, EndDrag)
 
-	Creator.AddSignal(CloseBtn.Activated, function()
-		Side:Hide()
+	Creator.AddSignal(UserInputService.InputEnded, function(Input)
+		if not activeInput then return end
+		if Input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and Input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if activeInput.UserInputType == Enum.UserInputType.Touch and Input ~= activeInput then return end
+		local was = moved
+		activeInput = nil
+		if was then
+			SaveHandleY(handleYScale)
+		else
+			Side:Show()
+		end
 	end)
 
-	SetArrow(false)
 	PlaceHandle()
 	if DefaultOpen then
-		task.defer(function()
-			Side:Show()
-		end)
+		task.defer(function() Side:Show() end)
 	end
 
 	Library.SidePanel = Side
@@ -7034,6 +7025,16 @@ function Library:SetTheme(Value)
 		Creator.UpdateTheme()
 		pcall(function()
 			Library:_UpdateV2Shine()
+		end)
+		pcall(function()
+			if Library._ApplyStatsTheme then
+				Library._ApplyStatsTheme()
+			end
+		end)
+		pcall(function()
+			if Library._ApplySideTheme then
+				Library._ApplySideTheme()
+			end
 		end)
 	end
 end
