@@ -3511,12 +3511,37 @@ ElementsTable.Dropdown = (function()
 			end)
 		end
 
+		local function ParseDropdownOption(Value)
+			-- string → name only
+			-- { Icon = "swords", Name = "Training" }
+			-- { "rbxassetid://123", "Training" } or { "swords", "Training" }
+			-- { Icon = "...", Title = "..." }
+			if type(Value) == "table" then
+				local name = Value.Name or Value.Title or Value.Text or Value.Label
+				local icon = Value.Icon or Value.Image
+				if not name and type(Value[2]) == "string" then
+					icon = icon or Value[1]
+					name = Value[2]
+				elseif not name and type(Value[1]) == "string" then
+					name = Value[1]
+				end
+				name = tostring(name or "Option")
+				local resolved = nil
+				if icon ~= nil then
+					resolved = Library:GetIcon(icon) or tostring(icon)
+				end
+				return name, resolved
+			end
+			return tostring(Value), nil
+		end
+
 		function Dropdown:Display()
 			local Values = Dropdown.Values
 			local Str = ""
 
 			if Config.Multi then
-				for Idx, Value in next, Values do
+				for Idx, Raw in next, Values do
+					local Value = ParseDropdownOption(Raw)
 					if Dropdown.Value[Value] then
 						Str = Str .. Value .. ", "
 					end
@@ -3555,8 +3580,9 @@ ElementsTable.Dropdown = (function()
 
 			local Count = 0
 
-			for Idx, Value in next, Values do
+			for Idx, RawValue in next, Values do
 				local Table = {}
+				local Value, OptionIcon = ParseDropdownOption(RawValue)
 
 				Count = Count + 1
 
@@ -3565,6 +3591,7 @@ ElementsTable.Dropdown = (function()
 					BackgroundColor3 = Color3.fromRGB(76, 194, 255),
 					Position = UDim2.fromOffset(-1, 16),
 					AnchorPoint = Vector2.new(0, 0.5),
+					ZIndex = 204,
 					ThemeTag = {
 						BackgroundColor3 = "Accent",
 					},
@@ -3574,18 +3601,38 @@ ElementsTable.Dropdown = (function()
 					}),
 				})
 
+				local leftPad = OptionIcon and 36 or 12
+
+				local OptionIconImage = nil
+				if OptionIcon then
+					OptionIconImage = New("ImageLabel", {
+						Name = "OptionIcon",
+						Image = OptionIcon,
+						Size = UDim2.fromOffset(18, 18),
+						Position = UDim2.new(0, 12, 0.5, 0),
+						AnchorPoint = Vector2.new(0, 0.5),
+						BackgroundTransparency = 1,
+						ZIndex = 204,
+						ScaleType = Enum.ScaleType.Fit,
+						ThemeTag = {
+							ImageColor3 = "Text",
+						},
+					})
+				end
+
 				local ButtonLabel = New("TextLabel", {
 					FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
-					Text = Value,
+					Text = OptionIcon and ("|  " .. Value) or Value,
 					TextColor3 = Color3.fromRGB(200, 200, 200),
 					TextSize = 13,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 					AutomaticSize = Enum.AutomaticSize.Y,
 					BackgroundTransparency = 1,
-					Size = UDim2.fromScale(1, 1),
-					Position = UDim2.fromOffset(10, 0),
+					Size = UDim2.new(1, -leftPad - 8, 1, 0),
+					Position = UDim2.fromOffset(leftPad, 0),
 					Name = "ButtonLabel",
+					ZIndex = 204,
 					ThemeTag = {
 						TextColor3 = "Text",
 					},
@@ -3608,6 +3655,9 @@ ElementsTable.Dropdown = (function()
 						CornerRadius = UDim.new(0, 6),
 					}),
 				})
+				if OptionIconImage then
+					OptionIconImage.Parent = Button
+				end
 
 				local Selected
 
@@ -3780,21 +3830,29 @@ ElementsTable.Dropdown = (function()
 		end
 
 		function Dropdown:SetValue(Val)
-			if Dropdown.Multi then
-				local nTable = {}
-
-				for Value, Bool in next, Val do
-					if table.find(Dropdown.Values, Value) then
-						nTable[Value] = true
+			local function IsValidName(Name)
+				for _, Raw in next, Dropdown.Values do
+					if ParseDropdownOption(Raw) == Name then
+						return true
 					end
 				end
-
+				return false
+			end
+			if Dropdown.Multi then
+				local nTable = {}
+				for Value, Bool in next, Val do
+					local name = ParseDropdownOption(Value)
+					if IsValidName(name) then
+						nTable[name] = true
+					end
+				end
 				Dropdown.Value = nTable
 			else
 				if not Val then
 					Dropdown.Value = nil
-				elseif table.find(Dropdown.Values, Val) then
-					Dropdown.Value = Val
+				else
+					local name = ParseDropdownOption(Val)
+					Dropdown.Value = IsValidName(name) and name or nil
 				end
 			end
 
@@ -3814,29 +3872,47 @@ ElementsTable.Dropdown = (function()
 
 		local Defaults = {}
 
+		local function FindValueIndex(Want)
+			local wantName = ParseDropdownOption(Want)
+			for i, Raw in next, Dropdown.Values do
+				local name = ParseDropdownOption(Raw)
+				if name == wantName or Raw == Want then
+					return i
+				end
+			end
+			return nil
+		end
+
 		if type(Config.Default) == "string" then
-			local Idx = table.find(Dropdown.Values, Config.Default)
+			local Idx = FindValueIndex(Config.Default)
 			if Idx then
 				table.insert(Defaults, Idx)
 			end
-		elseif type(Config.Default) == "table" then
+		elseif type(Config.Default) == "table" and not (Config.Default.Icon or Config.Default.Name or Config.Default.Title) then
+			-- multi defaults list
 			for _, Value in next, Config.Default do
-				local Idx = table.find(Dropdown.Values, Value)
+				local Idx = FindValueIndex(Value)
 				if Idx then
 					table.insert(Defaults, Idx)
 				end
 			end
 		elseif type(Config.Default) == "number" and Dropdown.Values[Config.Default] ~= nil then
 			table.insert(Defaults, Config.Default)
+		elseif Config.Default ~= nil then
+			local Idx = FindValueIndex(Config.Default)
+			if Idx then
+				table.insert(Defaults, Idx)
+			end
 		end
 
 		if next(Defaults) then
 			for i = 1, #Defaults do
 				local Index = Defaults[i]
+				local name = ParseDropdownOption(Dropdown.Values[Index])
 				if Config.Multi then
-					Dropdown.Value[Dropdown.Values[Index]] = true
+					Dropdown.Value[name] = true
 				else
-					Dropdown.Value = Dropdown.Values[Index]
+					Dropdown.Value = name
 				end
 
 				if not Config.Multi then
@@ -6601,49 +6677,24 @@ function Library:CreateSidePanel(Config)
 		}),
 	})
 
-	-- ===== Edge handle (visible when CLOSED only; when open, use header arrow) =====
-	-- Handle matches main window acrylic (not solid pure purple)
-	local Handle = New("TextButton", {
+	-- ===== Edge handle: icon only (no background plate) =====
+	local Handle = New("ImageButton", {
 		Name = "SideHandle",
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, 0, handleYScale, 0),
-		Size = UDim2.fromOffset(28, 60),
-		BackgroundColor3 = TC("AcrylicMain"),
-		BackgroundTransparency = 0.2,
-		Text = "",
-		AutoButtonColor = false,
-		Active = true,
-		ClipsDescendants = true,
-		ZIndex = 20,
-		Parent = gui,
-	}, {
-		New("UICorner", { CornerRadius = UDim.new(0, 8) }),
-	})
-	Library._SideHandle = Handle
-
-	local HandleGrad = New("UIGradient", {
-		Rotation = 90,
-		Color = TC("AcrylicGradient"),
-		Parent = Handle,
-	})
-
-	local HandleStroke = New("UIStroke", {
-		Color = TC("AcrylicBorder"),
-		Transparency = 0.35,
-		Thickness = 1.2,
-		Parent = Handle,
-	})
-
-	local HandleIcon = New("ImageLabel", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(16, 16),
+		Position = UDim2.new(1, -6, handleYScale, 0),
+		Size = UDim2.fromOffset(28, 28),
 		BackgroundTransparency = 1,
 		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709791281",
 		ImageColor3 = TC("Text"),
-		ZIndex = 21,
-		Parent = Handle,
+		AutoButtonColor = false,
+		Active = true,
+		ZIndex = 20,
+		Parent = gui,
 	})
+	Library._SideHandle = Handle
+	local HandleIcon = Handle -- same object (icon is the button)
+	local HandleGrad = nil
+	local HandleStroke = nil
 
 	local function ApplySideTheme()
 		local tname = sideThemeName
@@ -6659,11 +6710,7 @@ function Library:CreateSidePanel(Config)
 		CollapseBtn.ImageColor3 = C("SubText")
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
-		Handle.BackgroundColor3 = C("AcrylicMain")
-		Handle.BackgroundTransparency = 0.2
-		if HandleGrad then HandleGrad.Color = C("AcrylicGradient") end
-		HandleStroke.Color = C("AcrylicBorder")
-		HandleIcon.ImageColor3 = C("Text")
+		Handle.ImageColor3 = C("Text")
 		pcall(function()
 			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
 		end)
@@ -6939,13 +6986,7 @@ end
 function Library:_RefreshOverlayShines()
 	local useShine = (Library.Theme == "Genesis V2")
 	-- side handle follows main UI style shine only on V2
-	if Library._SideHandle then
-		local old = Library._SideHandle:FindFirstChild("GenesisShine")
-		if old then old:Destroy() end
-		if useShine then
-			Library:_MakeShine(Library._SideHandle, 8, "strong")
-		end
-	end
+	-- side handle is icon-only — no shine plate
 	if Library._SidePaint then
 		local old = Library._SidePaint:FindFirstChild("GenesisShine")
 		if old then old:Destroy() end
