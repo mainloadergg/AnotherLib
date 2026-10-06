@@ -325,6 +325,7 @@ local function CloseOpen()
 	Close_ImageButton.Image = "rbxassetid://82140212012109"
 	Close_ImageButton.ScaleType = Enum.ScaleType.Fit
 	Close_ImageButton.Visible = false
+	Close_ImageButton.ClipsDescendants = true
 	Library._FloatButton = Close_ImageButton
 
 	UICorner.Name = "MainCorner"
@@ -332,10 +333,12 @@ local function CloseOpen()
 	UICorner.Parent = Close_ImageButton
 
 	local FloatStroke = Instance.new("UIStroke")
+	FloatStroke.Name = "FloatStroke"
 	FloatStroke.Color = Color3.fromRGB(120, 40, 200)
 	FloatStroke.Thickness = 1.5
-	FloatStroke.Transparency = 0.35
+	FloatStroke.Transparency = 0.3
 	FloatStroke.Parent = Close_ImageButton
+	Library._FloatStroke = FloatStroke
 
 	local FloatAspect = Instance.new("UIAspectRatioConstraint")
 	FloatAspect.AspectRatio = 1
@@ -344,6 +347,36 @@ local function CloseOpen()
 	local dragging = false
 	local dragStart = nil
 	local startPos = nil
+	local didDrag = false
+
+	local function SaveFloatPos()
+		if not Library.FloatButtonSaveLocation then return end
+		pcall(function()
+			if not isfolder then return end
+			if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
+			local p = Close_ImageButton.Position
+			writefile("GenesisXYZ/float_button.json", httpService:JSONEncode({
+				sx = p.X.Scale, ox = p.X.Offset,
+				sy = p.Y.Scale, oy = p.Y.Offset,
+			}))
+		end)
+	end
+
+	local function LoadFloatPos()
+		pcall(function()
+			if not isfile or not isfile("GenesisXYZ/float_button.json") then return end
+			local data = httpService:JSONDecode(readfile("GenesisXYZ/float_button.json"))
+			if type(data) == "table" then
+				Close_ImageButton.Position = UDim2.new(
+					tonumber(data.sx) or 0, tonumber(data.ox) or 0,
+					tonumber(data.sy) or 0, tonumber(data.oy) or 0
+				)
+			end
+		end)
+	end
+	Library._LoadFloatPos = LoadFloatPos
+	Library._SaveFloatPos = SaveFloatPos
+	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
 	local function update(input)
 		local delta = input.Position - dragStart
@@ -353,12 +386,16 @@ local function CloseOpen()
 	Close_ImageButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
+			didDrag = false
 			dragStart = input.Position
 			startPos = Close_ImageButton.Position
 
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
+					if didDrag then
+						SaveFloatPos()
+					end
 				end
 			end)
 		end
@@ -366,6 +403,10 @@ local function CloseOpen()
 
 	Close_ImageButton.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
+				didDrag = true
+			end
 			update(input)
 		end
 	end)
@@ -1751,9 +1792,11 @@ Components.Tab = (function()
 			BottomImage = "rbxassetid://6889812791",
 			MidImage = "rbxassetid://6889812721",
 			TopImage = "rbxassetid://6276641225",
-			ScrollBarImageColor3 = Color3.fromRGB(180, 140, 255),
-			ScrollBarImageTransparency = 0.85,
+			ScrollBarImageTransparency = 0.55,
 			ScrollBarThickness = 4,
+			ThemeTag = {
+				ScrollBarImageColor3 = "Accent",
+			},
 			BorderSizePixel = 0,
 			CanvasSize = UDim2.fromScale(0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -1842,7 +1885,7 @@ Components.Tab = (function()
 					BorderSizePixel = 0,
 					ScrollBarThickness = 4,
 					ScrollBarImageTransparency = 0.7,
-					ScrollBarImageColor3 = Color3.fromRGB(180, 140, 255),
+					ThemeTag = { ScrollBarImageColor3 = "Accent" },
 					ScrollingDirection = Enum.ScrollingDirection.Y,
 					CanvasSize = UDim2.new(0, 0, 0, 0),
 					AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -2095,10 +2138,10 @@ Components.Dialog = (function()
 			),
 			Text = "Dialog",
 			TextColor3 = Color3.fromRGB(240, 240, 240),
-			TextSize = 22,
+			TextSize = 18,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Size = UDim2.new(1, 0, 0, 22),
-			Position = UDim2.fromOffset(20, 25),
+			Size = UDim2.new(1, -40, 0, 22),
+			Position = UDim2.fromOffset(20, 20),
 			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BackgroundTransparency = 1,
 			ThemeTag = {
@@ -2113,7 +2156,7 @@ Components.Dialog = (function()
 		local ScaleMotor, Scale = Creator.SpringMotor(1.1, NewDialog.Scale, "Scale")
 
 		NewDialog.Root = New("CanvasGroup", {
-			Size = UDim2.fromOffset(300, 165),
+			Size = UDim2.fromOffset(340, 180),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			GroupTransparency = 1,
@@ -2123,18 +2166,30 @@ Components.Dialog = (function()
 			},
 		}, {
 			New("UICorner", {
-				CornerRadius = UDim.new(0, 8),
+				CornerRadius = UDim.new(0, 10),
 			}),
 			New("UIStroke", {
-				Transparency = 0.5,
+				Transparency = 0.25,
+				Thickness = 1.4,
 				ThemeTag = {
-					Color = "DialogBorder",
+					Color = "Accent",
 				},
 			}),
 			NewDialog.Scale,
 			NewDialog.Title,
 			NewDialog.ButtonHolderFrame,
 		})
+		-- soft reflection on dialog when theme supports it
+		task.defer(function()
+			local reflective = ({
+				["Genesis V2"] = true,
+				["Spectrum X"] = true,
+				["Darker X"] = true,
+			})[Library.Theme]
+			if reflective and Library._MakeShine then
+				Library:_MakeShine(NewDialog.Root, 10, "normal")
+			end
+		end)
 
 		local RootMotor, RootTransparency = Creator.SpringMotor(1, NewDialog.Root, "GroupTransparency")
 
@@ -2693,8 +2748,8 @@ Components.TitleBar = (function()
 
 		TitleBar.CloseButton = BarButton(Components.Assets.Close, UDim2.new(1, -2, 0, 3), TitleBar.Frame, function()
 			Library.Window:Dialog({
-				Title = "Close",
-				Content = "Are you sure you want to unload the interface?",
+				Title = "Close Interface",
+				Content = "Are you sure you want to unload the interface? This will close the UI completely.",
 				Buttons = {
 					{
 						Title = "Yes",
@@ -2713,6 +2768,35 @@ Components.TitleBar = (function()
 			Library.Window:Minimize()
 			if not Close_ImageButton.Visible then Close_ImageButton.Visible = true end
 		end)
+
+		-- Reset float position button (only when save location is enabled)
+		if Library.FloatButtonSaveLocation then
+			local resetIcon = Library:GetIcon("rotate-ccw") or Library:GetIcon("refresh-cw") or "rbxassetid://10734886281"
+			TitleBar.ResetFloatButton = BarButton(resetIcon, UDim2.new(1, -66, 0, 3), TitleBar.Frame, function()
+				Library.Window:Dialog({
+					Title = "Reset Float Button",
+					Content = "Are you sure you want to reset the floating button position to default?",
+					Buttons = {
+						{
+							Title = "Yes",
+							Callback = function()
+								pcall(function()
+									if isfile and isfile("GenesisXYZ/float_button.json") then
+										delfile("GenesisXYZ/float_button.json")
+									end
+								end)
+								if Close_ImageButton and Library._DefaultFloatPos then
+									Close_ImageButton.Position = Library._DefaultFloatPos
+								end
+							end,
+						},
+						{
+							Title = "No",
+						},
+					},
+				})
+			end)
+		end
 
 		Close_ImageButton.Activated:Connect(function()
 			Library.Window:Minimize()
@@ -2753,6 +2837,12 @@ Components.Window = (function()
 		Window.TabWidth = Config.TabWidth or 160
 		Window.SearchBarEnabled = Config.SearchBar == true
 		Window.TwoSides = Config.TwoSides == true
+		Window.AutoAdapt = Config.AutoAdapt == true
+
+		Library.FloatButtonSaveLocation = Config.FloatButtonSaveLocation == true
+		if Library.FloatButtonSaveLocation and Library._LoadFloatPos then
+			Library._LoadFloatPos()
+		end
 
 		-- Float icon override
 		if Config.FloatIcon and Library._FloatButton then
@@ -2761,6 +2851,7 @@ Components.Window = (function()
 				Library._FloatButton.Image = resolved
 			end
 		end
+		pcall(function() Library:_ApplyFloatTheme() end)
 
 		local Selector = New("Frame", {
 			Size = UDim2.fromOffset(4, 0),
@@ -2867,6 +2958,10 @@ Components.Window = (function()
 				Text = "",
 				PlaceholderText = "Search",
 				PlaceholderColor3 = Color3.fromRGB(140, 130, 160),
+				ThemeTag = {
+					TextColor3 = "Text",
+					PlaceholderColor3 = "SubText",
+				},
 				TextColor3 = Color3.fromRGB(240, 240, 255),
 				TextSize = 12,
 				FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
@@ -3545,7 +3640,7 @@ ElementsTable.Dropdown = (function()
 			BorderSizePixel = 0,
 			ScrollBarThickness = 8,
 			ScrollBarImageTransparency = 0.35,
-			ScrollBarImageColor3 = Color3.fromRGB(160, 120, 255),
+			ThemeTag = { ScrollBarImageColor3 = "Accent" },
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -6531,10 +6626,42 @@ function Library:CreateWindow(Config)
 		Library:_UpdateV2Shine()
 	end)
 
-	-- keep centered on viewport resize (mobile rotate / PC resize)
+	-- AutoAdapt: fit within viewport with margin from top/bottom
+	local function ApplyAutoAdapt()
+		if not Window or not Window.Root then return end
+		if not Window.AutoAdapt then return end
+		if Window.Maximized or Window.Minimized then return end
+		local vs = Camera.ViewportSize
+		local margin = 14
+		local maxW = math.max(320, vs.X - margin * 2)
+		local maxH = math.max(280, vs.Y - margin * 2)
+		local cur = Window.Root.AbsoluteSize
+		local w = math.min(cur.X > 0 and cur.X or Window.Size.X.Offset, maxW)
+		local h = math.min(cur.Y > 0 and cur.Y or Window.Size.Y.Offset, maxH)
+		-- prefer configured size when it fits
+		if Window.Size then
+			w = math.min(Window.Size.X.Offset, maxW)
+			h = math.min(Window.Size.Y.Offset, maxH)
+		end
+		Window.Root.Size = UDim2.fromOffset(w, h)
+		Window.Size = UDim2.fromOffset(w, h)
+		Window.Root.Position = UDim2.fromOffset(
+			math.max(margin, (vs.X - w) / 2),
+			math.max(margin, (vs.Y - h) / 2)
+		)
+	end
+
+	if Window.AutoAdapt then
+		task.defer(ApplyAutoAdapt)
+	end
+
+	-- keep centered / adapted on viewport resize
 	pcall(function()
 		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			if Window and Window.Root and not Window.Maximized and not Window.Minimized then
+			if not Window or not Window.Root or Window.Maximized or Window.Minimized then return end
+			if Window.AutoAdapt then
+				ApplyAutoAdapt()
+			else
 				local sz = Window.Root.AbsoluteSize
 				local vs = Camera.ViewportSize
 				Window.Root.Position = UDim2.fromOffset(
@@ -6969,6 +7096,32 @@ function Library:CreateSidePanel(Config)
 end
 
 
+function Library:_ApplyFloatTheme()
+	local t = Themes[Library.Theme] or Themes.GenesisX
+	if Library._FloatButton then
+		Library._FloatButton.BackgroundColor3 = t.AcrylicMain or t.Dialog
+		Library._FloatButton.BackgroundTransparency = 0.12
+	end
+	if Library._FloatStroke then
+		Library._FloatStroke.Color = t.Accent
+		Library._FloatStroke.Transparency = 0.28
+	end
+	-- reflection on float for reflective themes
+	pcall(function()
+		if not Library._FloatButton then return end
+		local old = Library._FloatButton:FindFirstChild("GenesisShine")
+		if old then old:Destroy() end
+		local reflective = ({
+			["Genesis V2"] = true,
+			["Spectrum X"] = true,
+			["Darker X"] = true,
+		})[Library.Theme]
+		if reflective and Library._MakeShine then
+			Library:_MakeShine(Library._FloatButton, 8, "strong")
+		end
+	end)
+end
+
 function Library:SetTheme(Value)
 	if table.find(Library.Themes, Value) then
 		Library.Theme = Value
@@ -6980,6 +7133,9 @@ function Library:SetTheme(Value)
 			if Library._ApplySideTheme then
 				Library._ApplySideTheme()
 			end
+		end)
+		pcall(function()
+			Library:_ApplyFloatTheme()
 		end)
 	end
 end
