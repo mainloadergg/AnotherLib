@@ -56,6 +56,8 @@ local Themes = {
 	Names = {
 		"GenesisX",
 		"Genesis V2",
+		"Spectrum X",
+		"Darker X",
 	},
 	GenesisX = {
 		Name = "GenesisX",
@@ -155,6 +157,110 @@ local Themes = {
 		SubText = Color3.fromRGB(200, 180, 240),
 		Hover = Color3.fromRGB(190, 110, 255),
 		HoverChange = 0.1,
+	},
+	-- Pure red + reflective sweep
+	["Spectrum X"] = {
+		Name = "Spectrum X",
+		Accent = Color3.fromRGB(255, 45, 65),
+
+		AcrylicMain = Color3.fromRGB(28, 8, 12),
+		AcrylicBorder = Color3.fromRGB(220, 40, 55),
+		AcrylicGradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 20, 35)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 55, 70)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 10, 18)),
+		}),
+		AcrylicNoise = 0.92,
+
+		TitleBarLine = Color3.fromRGB(255, 70, 85),
+		Tab = Color3.fromRGB(230, 40, 55),
+
+		Element = Color3.fromRGB(200, 35, 50),
+		ElementBorder = Color3.fromRGB(120, 25, 35),
+		InElementBorder = Color3.fromRGB(255, 70, 90),
+		ElementTransparency = 0.72,
+
+		ToggleSlider = Color3.fromRGB(255, 70, 85),
+		ToggleToggled = Color3.fromRGB(255, 255, 255),
+
+		SliderRail = Color3.fromRGB(200, 140, 150),
+
+		DropdownFrame = Color3.fromRGB(40, 10, 14),
+		DropdownHolder = Color3.fromRGB(55, 14, 20),
+		DropdownBorder = Color3.fromRGB(255, 45, 65),
+		DropdownOption = Color3.fromRGB(255, 90, 100),
+
+		Keybind = Color3.fromRGB(230, 40, 55),
+
+		Input = Color3.fromRGB(240, 180, 185),
+		InputFocused = Color3.fromRGB(0, 0, 0),
+		InputIndicator = Color3.fromRGB(255, 80, 95),
+
+		Dialog = Color3.fromRGB(32, 8, 12),
+		DialogHolder = Color3.fromRGB(50, 12, 18),
+		DialogHolderLine = Color3.fromRGB(255, 45, 65),
+		DialogButton = Color3.fromRGB(32, 8, 12),
+		DialogButtonBorder = Color3.fromRGB(255, 80, 95),
+		DialogBorder = Color3.fromRGB(140, 30, 40),
+		DialogInput = Color3.fromRGB(45, 12, 16),
+		DialogInputLine = Color3.fromRGB(255, 80, 95),
+
+		Text = Color3.fromRGB(255, 255, 255),
+		SubText = Color3.fromRGB(240, 180, 185),
+		Hover = Color3.fromRGB(255, 90, 100),
+		HoverChange = 0.1,
+	},
+	-- Pure black + soft white/silver reflection
+	["Darker X"] = {
+		Name = "Darker X",
+		Accent = Color3.fromRGB(220, 220, 230),
+
+		AcrylicMain = Color3.fromRGB(8, 8, 10),
+		AcrylicBorder = Color3.fromRGB(70, 70, 78),
+		AcrylicGradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 32)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(55, 55, 62)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 14)),
+		}),
+		AcrylicNoise = 0.94,
+
+		TitleBarLine = Color3.fromRGB(120, 120, 130),
+		Tab = Color3.fromRGB(180, 180, 190),
+
+		Element = Color3.fromRGB(40, 40, 48),
+		ElementBorder = Color3.fromRGB(55, 55, 65),
+		InElementBorder = Color3.fromRGB(140, 140, 150),
+		ElementTransparency = 0.7,
+
+		ToggleSlider = Color3.fromRGB(200, 200, 210),
+		ToggleToggled = Color3.fromRGB(255, 255, 255),
+
+		SliderRail = Color3.fromRGB(100, 100, 110),
+
+		DropdownFrame = Color3.fromRGB(14, 14, 16),
+		DropdownHolder = Color3.fromRGB(22, 22, 26),
+		DropdownBorder = Color3.fromRGB(90, 90, 100),
+		DropdownOption = Color3.fromRGB(160, 160, 170),
+
+		Keybind = Color3.fromRGB(160, 160, 170),
+
+		Input = Color3.fromRGB(200, 200, 210),
+		InputFocused = Color3.fromRGB(0, 0, 0),
+		InputIndicator = Color3.fromRGB(180, 180, 190),
+
+		Dialog = Color3.fromRGB(12, 12, 14),
+		DialogHolder = Color3.fromRGB(20, 20, 24),
+		DialogHolderLine = Color3.fromRGB(90, 90, 100),
+		DialogButton = Color3.fromRGB(12, 12, 14),
+		DialogButtonBorder = Color3.fromRGB(140, 140, 150),
+		DialogBorder = Color3.fromRGB(55, 55, 62),
+		DialogInput = Color3.fromRGB(18, 18, 22),
+		DialogInputLine = Color3.fromRGB(140, 140, 150),
+
+		Text = Color3.fromRGB(255, 255, 255),
+		SubText = Color3.fromRGB(170, 170, 180),
+		Hover = Color3.fromRGB(200, 200, 210),
+		HoverChange = 0.08,
 	},
 }
 
@@ -6909,12 +7015,32 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 	local baseT = strong and 0.55 or 0.82
 	local peakT = strong and 0.42 or 0.78
 
+	local themeName = Library.Theme
+	local beamColor = Color3.fromRGB(200, 160, 255)
+	local beamBright = Color3.fromRGB(235, 210, 255)
+	local gradA = Color3.fromRGB(150, 80, 255)
+	local gradB = Color3.fromRGB(245, 230, 255)
+	local gradC = Color3.fromRGB(170, 100, 255)
+	if themeName == "Spectrum X" then
+		beamColor = Color3.fromRGB(255, 120, 130)
+		beamBright = Color3.fromRGB(255, 200, 205)
+		gradA = Color3.fromRGB(200, 40, 55)
+		gradB = Color3.fromRGB(255, 230, 230)
+		gradC = Color3.fromRGB(255, 80, 90)
+	elseif themeName == "Darker X" then
+		beamColor = Color3.fromRGB(180, 180, 190)
+		beamBright = Color3.fromRGB(240, 240, 245)
+		gradA = Color3.fromRGB(80, 80, 90)
+		gradB = Color3.fromRGB(255, 255, 255)
+		gradC = Color3.fromRGB(160, 160, 170)
+	end
+
 	local beam = New("Frame", {
 		Name = "ShineBeam",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.new(beamW, 0, 1.25, 0),
 		Position = UDim2.new(-0.2, 0, 0.5, 0),
-		BackgroundColor3 = strong and Color3.fromRGB(235, 210, 255) or Color3.fromRGB(200, 160, 255),
+		BackgroundColor3 = strong and beamBright or beamColor,
 		BackgroundTransparency = baseT,
 		BorderSizePixel = 0,
 		Rotation = strong and 8 or 12,
@@ -6932,9 +7058,9 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 				NumberSequenceKeypoint.new(1, 1),
 			}),
 			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 80, 255)),
-				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(245, 230, 255)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 100, 255)),
+				ColorSequenceKeypoint.new(0, gradA),
+				ColorSequenceKeypoint.new(0.5, gradB),
+				ColorSequenceKeypoint.new(1, gradC),
 			}),
 		}),
 	})
@@ -6966,7 +7092,12 @@ function Library:_UpdateV2Shine()
 		Library._V2ShineFrame = nil
 	end
 
-	if Library.Theme ~= "Genesis V2" then
+	local reflective = ({
+		["Genesis V2"] = true,
+		["Spectrum X"] = true,
+		["Darker X"] = true,
+	})[Library.Theme] == true
+	if not reflective then
 		pcall(function()
 			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
 		end)
@@ -6984,7 +7115,11 @@ function Library:_UpdateV2Shine()
 end
 
 function Library:_RefreshOverlayShines()
-	local useShine = (Library.Theme == "Genesis V2")
+	local useShine = ({
+		["Genesis V2"] = true,
+		["Spectrum X"] = true,
+		["Darker X"] = true,
+	})[Library.Theme] == true
 	-- side handle follows main UI style shine only on V2
 	-- side handle is icon-only — no shine plate
 	if Library._SidePaint then
