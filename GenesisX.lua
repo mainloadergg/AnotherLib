@@ -411,7 +411,11 @@ local function CloseOpen()
 		dragging = false
 		activeInput = nil
 		if wasDrag then
+			Library._FloatJustDragged = true
 			SaveFloatPos()
+			task.delay(0.15, function()
+				Library._FloatJustDragged = false
+			end)
 		end
 	end
 
@@ -2854,6 +2858,11 @@ Components.TitleBar = (function()
 		end
 
 		Close_ImageButton.Activated:Connect(function()
+			-- ignore click that was actually a drag
+			if Library._FloatJustDragged then
+				Library._FloatJustDragged = false
+				return
+			end
 			Library.Window:Minimize()
 			if Close_ImageButton.Visible then Close_ImageButton.Visible = false end
 		end)
@@ -2895,11 +2904,18 @@ Components.Window = (function()
 		Window.AutoAdapt = Config.AutoAdapt == true
 
 		Library.FloatButtonSaveLocation = Config.FloatButtonSaveLocation == true
-		if Library.FloatButtonSaveLocation and Library._LoadFloatPos then
-			Library._LoadFloatPos()
-			task.defer(function()
+			or Config.FloatButtonSaveLocation == "true"
+			or Config.FloatButtonSaveLocation == 1
+		if Library.FloatButtonSaveLocation then
+			if Library._LoadFloatPos then
 				Library._LoadFloatPos()
-			end)
+				task.defer(function()
+					Library._LoadFloatPos()
+				end)
+				task.delay(0.5, function()
+					Library._LoadFloatPos()
+				end)
+			end
 		end
 
 		-- Float icon override
@@ -3107,7 +3123,54 @@ Components.Window = (function()
 			Parent = Window.Root,
 			Window = Window,
 			HeaderIcon = Config.HeaderIcon,
+			FloatButtonSaveLocation = (Config.FloatButtonSaveLocation == true),
 		})
+
+		-- Safety net: inject reset float button if flag on and missing
+		if Config.FloatButtonSaveLocation == true and Window.TitleBar and Window.TitleBar.Frame and not Window.TitleBar.ResetFloatButton then
+			local NewC = Creator.New
+			local resetIcon = Library:GetIcon("rotate-ccw") or Library:GetIcon("refresh-cw") or "rbxassetid://10734886281"
+			local btn = NewC("TextButton", {
+				Name = "ResetFloatButton",
+				Size = UDim2.new(0, 28, 0, 28),
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -66, 0, 6),
+				BackgroundTransparency = 1,
+				Text = "",
+				ZIndex = 60,
+				Parent = Window.TitleBar.Frame,
+			}, {
+				NewC("ImageLabel", {
+					Image = resetIcon,
+					Size = UDim2.fromOffset(16, 16),
+					Position = UDim2.fromScale(0.5, 0.5),
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					BackgroundTransparency = 1,
+					ThemeTag = { ImageColor3 = "Text" },
+				}),
+			})
+			btn.MouseButton1Click:Connect(function()
+				Window:Dialog({
+					Title = "Reset Float Button",
+					Content = "Are you sure you want to reset the floating button position to default?",
+					Buttons = {
+						{ Title = "Yes", Callback = function()
+							pcall(function()
+								if type(isfile) == "function" and isfile("GenesisXYZ/float_button.json") and type(delfile) == "function" then
+									delfile("GenesisXYZ/float_button.json")
+								end
+							end)
+							if Library._FloatButton then
+								Library._FloatButton.AnchorPoint = Vector2.new(0, 0)
+								Library._FloatButton.Position = Library._DefaultFloatPos or UDim2.new(0.1021, 0, 0.0743, 0)
+							end
+						end },
+						{ Title = "No" },
+					},
+				})
+			end)
+			Window.TitleBar.ResetFloatButton = btn
+		end
 
 		if Library.UseAcrylic then
 			Window.AcrylicPaint.AddParent(Window.Root)
