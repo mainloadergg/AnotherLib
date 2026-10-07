@@ -349,20 +349,22 @@ local function CloseOpen()
 	local startPos = nil
 	local moved = false
 
+	local startAbs = Vector2.zero
+
 	local function SaveFloatPos()
 		pcall(function()
 			if type(writefile) ~= "function" then return end
 			if type(isfolder) == "function" and type(makefolder) == "function" then
 				if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
 			end
+			-- Always store TOP-LEFT as viewport scale (AnchorPoint 0,0) — no center mismatch
 			local vs = Camera.ViewportSize
 			local abs = Close_ImageButton.AbsolutePosition
-			local sz = Close_ImageButton.AbsoluteSize
-			local cx = (abs.X + sz.X * 0.5) / math.max(vs.X, 1)
-			local cy = (abs.Y + sz.Y * 0.5) / math.max(vs.Y, 1)
+			local x = abs.X / math.max(vs.X, 1)
+			local y = abs.Y / math.max(vs.Y, 1)
 			writefile("GenesisXYZ/float_button.json", httpService:JSONEncode({
-				x = math.clamp(cx, 0.02, 0.98),
-				y = math.clamp(cy, 0.02, 0.98),
+				x = math.clamp(x, 0, 0.95),
+				y = math.clamp(y, 0, 0.95),
 			}))
 		end)
 	end
@@ -374,20 +376,19 @@ local function CloseOpen()
 			local data = httpService:JSONDecode(readfile("GenesisXYZ/float_button.json"))
 			if type(data) ~= "table" then return end
 			local x, y = tonumber(data.x), tonumber(data.y)
-			if x and y then
-				Close_ImageButton.AnchorPoint = Vector2.new(0.5, 0.5)
-				Close_ImageButton.Position = UDim2.fromScale(
-					math.clamp(x, 0.02, 0.98),
-					math.clamp(y, 0.02, 0.98)
-				)
-			end
+			if not x or not y then return end
+			Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
+			Close_ImageButton.Position = UDim2.fromScale(
+				math.clamp(x, 0, 0.95),
+				math.clamp(y, 0, 0.95)
+			)
 		end)
 	end
 	Library._LoadFloatPos = LoadFloatPos
 	Library._SaveFloatPos = SaveFloatPos
 	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
-	-- Simple drag (original style) — save position live while moving
+	-- Drag using AbsolutePosition so load/save match exactly
 	Close_ImageButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch
 			or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -395,7 +396,8 @@ local function CloseOpen()
 			dragging = true
 			moved = false
 			dragStart = input.Position
-			startPos = Close_ImageButton.Position
+			startAbs = Close_ImageButton.AbsolutePosition
+			Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
@@ -422,11 +424,11 @@ local function CloseOpen()
 		if math.abs(delta.X) > 2 or math.abs(delta.Y) > 2 then
 			moved = true
 		end
-		Close_ImageButton.Position = UDim2.new(
-			startPos.X.Scale, startPos.X.Offset + delta.X,
-			startPos.Y.Scale, startPos.Y.Offset + delta.Y
-		)
-		-- save in real time while dragging
+		local vs = Camera.ViewportSize
+		local nx = math.clamp(startAbs.X + delta.X, 0, math.max(0, vs.X - 48))
+		local ny = math.clamp(startAbs.Y + delta.Y, 0, math.max(0, vs.Y - 48))
+		Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
+		Close_ImageButton.Position = UDim2.fromOffset(nx, ny)
 		if moved then
 			SaveFloatPos()
 		end
@@ -6706,24 +6708,16 @@ function Library:CreateWindow(Config)
 end
 
 --[[
-	Side mini-panel (right edge)
-	Usage:
-	  local Side = Library:CreateSidePanel({
-	    Title = "Quick",
-	    SubTitle = "Menu",
-	    Width = 270,
-	    DefaultOpen = false,
-	    Theme = "Genesis V2", -- optional
-	  })
-]]
---[[
-	Side mini-panel — same visual language as main window
-	  local Side = Library:CreateSidePanel({
-	    Title = "Quick",
-	    SubTitle = "Menu",
+	Side mini-panel — multiple allowed
+	  local Right = Library:CreateSidePanel({
+	    Title = "ESP",
+	    Side = "Right", -- default
 	    Width = 280,
-	    Theme = "Genesis V2", -- optional
-	    DefaultOpen = false,
+	  })
+	  local Left = Library:CreateSidePanel({
+	    Title = "Tools",
+	    Side = "Left",
+	    Width = 260,
 	  })
 ]]
 function Library:CreateSidePanel(Config)
@@ -6737,9 +6731,17 @@ function Library:CreateSidePanel(Config)
 		sideThemeName = Library.Theme
 	end
 
-	if Library._SidePanelGui then
-		pcall(function() Library._SidePanelGui:Destroy() end)
-		Library._SidePanelGui = nil
+	local sideOpt = string.lower(tostring(Config.Side or Config.Position or "Right"))
+	local isLeft = (sideOpt == "left")
+	local panelKey = tostring(Config.Id or Config.Name or (Title .. "_" .. (isLeft and "L" or "R")))
+
+	Library._SidePanels = Library._SidePanels or {}
+	if Library._SidePanels[panelKey] then
+		pcall(function()
+			local old = Library._SidePanels[panelKey]
+			if old and old.Destroy then old:Destroy() end
+		end)
+		Library._SidePanels[panelKey] = nil
 	end
 
 	local function TC(key)
@@ -6749,7 +6751,7 @@ function Library:CreateSidePanel(Config)
 
 	local parent = GetUIParent()
 	local gui = New("ScreenGui", {
-		Name = "GenesisXYZ_SidePanel",
+		Name = "GenesisXYZ_SidePanel_" .. panelKey:gsub("[^%w]", "_"),
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		DisplayOrder = 999980,
@@ -6757,12 +6759,12 @@ function Library:CreateSidePanel(Config)
 		Parent = parent,
 	})
 	pcall(function() ProtectGui(gui) end)
-	Library._SidePanelGui = gui
 
+	local handleFile = "GenesisXYZ/sidepanel_" .. (isLeft and "L" or "R") .. "_" .. panelKey:gsub("[^%w]", "_") .. ".json"
 	local handleYScale = 0.5
 	pcall(function()
-		if isfile and isfile("GenesisXYZ/sidepanel_handle.json") then
-			local data = httpService:JSONDecode(readfile("GenesisXYZ/sidepanel_handle.json"))
+		if type(isfile) == "function" and isfile(handleFile) then
+			local data = httpService:JSONDecode(readfile(handleFile))
 			if type(data) == "table" and type(data.y) == "number" then
 				handleYScale = math.clamp(data.y, 0.12, 0.88)
 			end
@@ -6771,17 +6773,29 @@ function Library:CreateSidePanel(Config)
 
 	local function SaveHandleY(y)
 		pcall(function()
-			if not isfolder then return end
-			if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
-			writefile("GenesisXYZ/sidepanel_handle.json", httpService:JSONEncode({ y = y }))
+			if type(writefile) ~= "function" then return end
+			if type(isfolder) == "function" and type(makefolder) == "function" then
+				if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
+			end
+			writefile(handleFile, httpService:JSONEncode({ y = y }))
 		end)
 	end
 
-	-- ===== Panel shell (same structure as AcrylicPaint) =====
+	local closedPos, openPos, panelAnchor
+	if isLeft then
+		panelAnchor = Vector2.new(1, 0.5)
+		closedPos = UDim2.new(0, -20, 0.5, 0)
+		openPos = UDim2.new(0, Width + 14, 0.5, 0)
+	else
+		panelAnchor = Vector2.new(0, 0.5)
+		closedPos = UDim2.new(1, 20, 0.5, 0)
+		openPos = UDim2.new(1, -(Width + 14), 0.5, 0)
+	end
+
 	local Panel = New("Frame", {
 		Name = "SidePanel",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(1, 20, 0.5, 0),
+		AnchorPoint = panelAnchor,
+		Position = closedPos,
 		Size = UDim2.fromOffset(Width, 360),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
@@ -6797,7 +6811,6 @@ function Library:CreateSidePanel(Config)
 		Camera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshH)
 	end)
 
-	-- acrylic-like layers
 	local Paint = New("Frame", {
 		Name = "Paint",
 		Size = UDim2.fromScale(1, 1),
@@ -6843,7 +6856,7 @@ function Library:CreateSidePanel(Config)
 		Thickness = 1.5,
 		Parent = Paint,
 	})
-	-- extra outer accent rim (same idea as main window border)
+
 	local PaintAccent = New("UIStroke", {
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Color = TC("Accent"),
@@ -6854,7 +6867,6 @@ function Library:CreateSidePanel(Config)
 	New("UICorner", { CornerRadius = UDim.new(0, 8), Parent = Panel })
 	Library._SidePaint = Paint
 
-	-- Header (title / subtitle) — like TitleBar, no X
 	local Header = New("Frame", {
 		Name = "Header",
 		Size = UDim2.new(1, 0, 0, 48),
@@ -6889,10 +6901,11 @@ function Library:CreateSidePanel(Config)
 		Parent = Header,
 	})
 
-	-- Right arrow in header = close (not X)
 	local CollapseBtn = New("ImageButton", {
 		Name = "Collapse",
-		Image = Library:GetIcon("chevron-right") or "rbxassetid://10709791437",
+		Image = isLeft
+			and (Library:GetIcon("chevron-left") or "rbxassetid://10709791281")
+			or (Library:GetIcon("chevron-right") or "rbxassetid://10709791437"),
 		Size = UDim2.fromOffset(18, 18),
 		Position = UDim2.new(1, -32, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -6940,14 +6953,20 @@ function Library:CreateSidePanel(Config)
 		}),
 	})
 
-	-- ===== Edge handle: icon only (no background plate) =====
+	local handleClosedIcon = isLeft
+		and (Library:GetIcon("chevron-right") or "rbxassetid://10709791437")
+		or (Library:GetIcon("chevron-left") or "rbxassetid://10709791281")
+	local handleOpenIcon = isLeft
+		and (Library:GetIcon("chevron-left") or "rbxassetid://10709791281")
+		or (Library:GetIcon("chevron-right") or "rbxassetid://10709791437")
+
 	local Handle = New("ImageButton", {
 		Name = "SideHandle",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -6, handleYScale, 0),
+		AnchorPoint = isLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0.5),
+		Position = isLeft and UDim2.new(0, 6, handleYScale, 0) or UDim2.new(1, -6, handleYScale, 0),
 		Size = UDim2.fromOffset(28, 28),
 		BackgroundTransparency = 1,
-		Image = Library:GetIcon("chevron-left") or "rbxassetid://10709791281",
+		Image = handleClosedIcon,
 		ImageColor3 = TC("Text"),
 		AutoButtonColor = false,
 		Active = true,
@@ -6955,9 +6974,6 @@ function Library:CreateSidePanel(Config)
 		Parent = gui,
 	})
 	Library._SideHandle = Handle
-	local HandleIcon = Handle -- same object (icon is the button)
-	local HandleGrad = nil
-	local HandleStroke = nil
 
 	local function ApplySideTheme()
 		local tname = sideThemeName
@@ -6974,15 +6990,9 @@ function Library:CreateSidePanel(Config)
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
 		Handle.ImageColor3 = C("Text")
-		pcall(function()
-			if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
-		end)
 	end
 	Library._ApplySideTheme = ApplySideTheme
 	ApplySideTheme()
-	task.defer(function()
-		if Library._RefreshOverlayShines then Library._RefreshOverlayShines() end
-	end)
 
 	local Side = {
 		Open = false,
@@ -6994,39 +7004,42 @@ function Library:CreateSidePanel(Config)
 		Root = Panel,
 		Handle = Handle,
 		Type = "SidePanel",
+		Key = panelKey,
+		Side = isLeft and "Left" or "Right",
 	}
 
 	local function PlaceHandle()
 		if Side.Open then
-			-- hide edge handle while open — header arrow closes
 			Handle.Visible = false
 		else
 			Handle.Visible = true
-			Handle.Position = UDim2.new(1, 0, handleYScale, 0)
+			Handle.Position = isLeft
+				and UDim2.new(0, 6, handleYScale, 0)
+				or UDim2.new(1, -6, handleYScale, 0)
 		end
 	end
 
 	function Side:Show()
 		Side.Open = true
+		Handle.Image = handleOpenIcon
 		PlaceHandle()
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-			{ Position = UDim2.new(1, -(Width + 14), 0.5, 0) }
+			{ Position = openPos }
 		):Play()
 	end
 
 	function Side:Hide()
 		Side.Open = false
+		Handle.Image = handleClosedIcon
 		TweenService:Create(
 			Panel,
 			TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
-			{ Position = UDim2.new(1, 20, 0.5, 0) }
+			{ Position = closedPos }
 		):Play()
 		task.delay(0.12, function()
-			if not Side.Open then
-				PlaceHandle()
-			end
+			if not Side.Open then PlaceHandle() end
 		end)
 	end
 
@@ -7047,8 +7060,9 @@ function Library:CreateSidePanel(Config)
 
 	function Side:Destroy()
 		pcall(function() gui:Destroy() end)
-		if Library._SidePanelGui == gui then Library._SidePanelGui = nil end
-		Library._ApplySideTheme = nil
+		if Library._SidePanels and Library._SidePanels[panelKey] == Side then
+			Library._SidePanels[panelKey] = nil
+		end
 	end
 
 	function Side:AddSection(SectionTitle, Icon)
@@ -7063,12 +7077,10 @@ function Library:CreateSidePanel(Config)
 
 	setmetatable(Side, Elements)
 
-	-- Header arrow closes panel
 	Creator.AddSignal(CollapseBtn.Activated, function()
 		Side:Hide()
 	end)
 
-	-- Handle drag / tap (closed state)
 	local activeInput, dragStartY, startScale, moved = nil, 0, handleYScale, false
 	local MOVE_PX = 10
 
@@ -7092,7 +7104,9 @@ function Library:CreateSidePanel(Config)
 		if not moved then return end
 		local vs = Camera.ViewportSize
 		handleYScale = math.clamp(startScale + dy / math.max(vs.Y, 1), 0.12, 0.88)
-		Handle.Position = UDim2.new(1, 0, handleYScale, 0)
+		Handle.Position = isLeft
+			and UDim2.new(0, 6, handleYScale, 0)
+			or UDim2.new(1, -6, handleYScale, 0)
 	end
 
 	Creator.AddSignal(Handle.InputChanged, onMove)
@@ -7121,9 +7135,11 @@ function Library:CreateSidePanel(Config)
 		task.defer(function() Side:Show() end)
 	end
 
+	Library._SidePanels[panelKey] = Side
 	Library.SidePanel = Side
 	return Side
 end
+
 
 
 function Library:_ApplyFloatTheme()
