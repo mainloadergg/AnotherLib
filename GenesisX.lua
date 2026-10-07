@@ -347,11 +347,9 @@ local function CloseOpen()
 	local dragging = false
 	local dragStart = nil
 	local startPos = nil
-	local didDrag = false
-	local activeInput = nil
+	local moved = false
 
 	local function SaveFloatPos()
-		if Library.FloatButtonSaveLocation ~= true then return end
 		pcall(function()
 			if type(writefile) ~= "function" then return end
 			if type(isfolder) == "function" and type(makefolder) == "function" then
@@ -360,12 +358,12 @@ local function CloseOpen()
 			local vs = Camera.ViewportSize
 			local abs = Close_ImageButton.AbsolutePosition
 			local sz = Close_ImageButton.AbsoluteSize
-			-- store center as viewport scale (stable across resolutions)
 			local cx = (abs.X + sz.X * 0.5) / math.max(vs.X, 1)
 			local cy = (abs.Y + sz.Y * 0.5) / math.max(vs.Y, 1)
-			cx = math.clamp(cx, 0.02, 0.98)
-			cy = math.clamp(cy, 0.02, 0.98)
-			writefile("GenesisXYZ/float_button.json", httpService:JSONEncode({ x = cx, y = cy }))
+			writefile("GenesisXYZ/float_button.json", httpService:JSONEncode({
+				x = math.clamp(cx, 0.02, 0.98),
+				y = math.clamp(cy, 0.02, 0.98),
+			}))
 		end)
 	end
 
@@ -378,13 +376,9 @@ local function CloseOpen()
 			local x, y = tonumber(data.x), tonumber(data.y)
 			if x and y then
 				Close_ImageButton.AnchorPoint = Vector2.new(0.5, 0.5)
-				Close_ImageButton.Position = UDim2.fromScale(math.clamp(x, 0.02, 0.98), math.clamp(y, 0.02, 0.98))
-			elseif data.sx ~= nil then
-				-- legacy format
-				Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-				Close_ImageButton.Position = UDim2.new(
-					tonumber(data.sx) or 0, tonumber(data.ox) or 0,
-					tonumber(data.sy) or 0, tonumber(data.oy) or 0
+				Close_ImageButton.Position = UDim2.fromScale(
+					math.clamp(x, 0.02, 0.98),
+					math.clamp(y, 0.02, 0.98)
 				)
 			end
 		end)
@@ -393,72 +387,49 @@ local function CloseOpen()
 	Library._SaveFloatPos = SaveFloatPos
 	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
-	local function applyPos(input)
-		local delta = input.Position - dragStart
-		-- use offset-only while dragging for predictable movement
-		local vs = Camera.ViewportSize
-		local baseX = startAbs.X + delta.X
-		local baseY = startAbs.Y + delta.Y
-		baseX = math.clamp(baseX, 0, math.max(0, vs.X - 40))
-		baseY = math.clamp(baseY, 0, math.max(0, vs.Y - 40))
-		Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-		Close_ImageButton.Position = UDim2.fromOffset(baseX, baseY)
-	end
-
-	local startAbs = Vector2.new(0, 0)
-
-	local function EndDrag()
-		if not dragging then return end
-		local wasDrag = didDrag
-		dragging = false
-		activeInput = nil
-		if wasDrag then
-			Library._FloatJustDragged = true
-			SaveFloatPos()
-			task.delay(0.2, function()
-				Library._FloatJustDragged = false
-			end)
-		end
-	end
-
+	-- Simple drag (original style) — save position live while moving
 	Close_ImageButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch
-			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+		then
 			dragging = true
-			didDrag = false
-			activeInput = input
+			moved = false
 			dragStart = input.Position
-			startAbs = Close_ImageButton.AbsolutePosition
+			startPos = Close_ImageButton.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					if moved then
+						Library._FloatJustDragged = true
+						SaveFloatPos()
+						task.delay(0.2, function()
+							Library._FloatJustDragged = false
+						end)
+					end
+				end
+			end)
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
+	Close_ImageButton.InputChanged:Connect(function(input)
 		if not dragging then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-		-- for touch, only track the same finger
-		if input.UserInputType == Enum.UserInputType.Touch and activeInput and input ~= activeInput then
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
 			return
 		end
 		local delta = input.Position - dragStart
-		if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
-			didDrag = true
+		if math.abs(delta.X) > 2 or math.abs(delta.Y) > 2 then
+			moved = true
 		end
-		applyPos(input)
-	end)
-
-	UserInputService.InputEnded:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
+		Close_ImageButton.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+		-- save in real time while dragging
+		if moved then
+			SaveFloatPos()
 		end
-		if input.UserInputType == Enum.UserInputType.Touch and activeInput and input ~= activeInput then
-			return
-		end
-		EndDrag()
 	end)
 
 	return Close_ImageButton
@@ -2684,9 +2655,6 @@ Components.TitleBar = (function()
 			return Button
 		end
 
-		local saveFloat = (Config.FloatButtonSaveLocation == true) or (Library.FloatButtonSaveLocation == true)
-		local titleRightPad = saveFloat and 112 or 80
-
 		TitleBar.Frame = New("Frame", {
 			Size = UDim2.new(1, 0, 0, 40),
 			BackgroundTransparency = 1,
@@ -2694,7 +2662,7 @@ Components.TitleBar = (function()
 		}, {
 			New("Frame", {
 				Name = "TitleRow",
-				Size = UDim2.new(1, -titleRightPad, 1, 0),
+				Size = UDim2.new(1, -112, 1, 0),
 				Position = UDim2.new(0, 12, 0, 0),
 				BackgroundTransparency = 1,
 			}, {
@@ -2822,41 +2790,33 @@ Components.TitleBar = (function()
 			if not Close_ImageButton.Visible then Close_ImageButton.Visible = true end
 		end)
 
-		-- Reset float position button (only when save location is enabled)
-		if saveFloat then
-			local resetIcon = Library:GetIcon("rotate-ccw")
-				or Library:GetIcon("refresh-cw")
-				or Library:GetIcon("undo-2")
-				or "rbxassetid://10734886281"
-			TitleBar.ResetFloatButton = BarButton(resetIcon, UDim2.new(1, -66, 0, 3), TitleBar.Frame, function()
-				if not Library.Window then return end
-				Library.Window:Dialog({
-					Title = "Reset Float Button",
-					Content = "Are you sure you want to reset the floating button position to default?",
-					Buttons = {
-						{
-							Title = "Yes",
-							Callback = function()
-								pcall(function()
-									if type(isfile) == "function" and isfile("GenesisXYZ/float_button.json") then
-										if type(delfile) == "function" then
-											delfile("GenesisXYZ/float_button.json")
-										end
-									end
-								end)
-								if Close_ImageButton then
-									Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-									Close_ImageButton.Position = Library._DefaultFloatPos or UDim2.new(0.1021, 0, 0.0743, 0)
+		-- Reset float position — same style as Close / Min (always present)
+		TitleBar.ResetFloatButton = BarButton("rbxassetid://10734940376", UDim2.new(1, -66, 0, 3), TitleBar.Frame, function()
+			if not Library.Window then return end
+			Library.Window:Dialog({
+				Title = "Reset Float Button",
+				Content = "Are you sure you want to reset the floating button position to default?",
+				Buttons = {
+					{
+						Title = "Yes",
+						Callback = function()
+							pcall(function()
+								if type(isfile) == "function" and isfile("GenesisXYZ/float_button.json") and type(delfile) == "function" then
+									delfile("GenesisXYZ/float_button.json")
 								end
-							end,
-						},
-						{
-							Title = "No",
-						},
+							end)
+							if Close_ImageButton then
+								Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
+								Close_ImageButton.Position = Library._DefaultFloatPos or UDim2.new(0.1021, 0, 0.0743, 0)
+							end
+						end,
 					},
-				})
-			end)
-		end
+					{
+						Title = "No",
+					},
+				},
+			})
+		end)
 
 		Close_ImageButton.Activated:Connect(function()
 			-- ignore click that was actually a drag
@@ -2904,19 +2864,12 @@ Components.Window = (function()
 		Window.TwoSides = Config.TwoSides == true
 		Window.AutoAdapt = Config.AutoAdapt == true
 
-		Library.FloatButtonSaveLocation = Config.FloatButtonSaveLocation == true
-			or Config.FloatButtonSaveLocation == "true"
-			or Config.FloatButtonSaveLocation == 1
-		if Library.FloatButtonSaveLocation then
-			if Library._LoadFloatPos then
+		Library.FloatButtonSaveLocation = true -- always persist float button position
+		if Library._LoadFloatPos then
+			Library._LoadFloatPos()
+			task.defer(function()
 				Library._LoadFloatPos()
-				task.defer(function()
-					Library._LoadFloatPos()
-				end)
-				task.delay(0.5, function()
-					Library._LoadFloatPos()
-				end)
-			end
+			end)
 		end
 
 		-- Float icon override
@@ -3127,61 +3080,6 @@ Components.Window = (function()
 			FloatButtonSaveLocation = (Config.FloatButtonSaveLocation == true),
 		})
 
-		-- Always inject visible reset float button when save-location is enabled
-		if Config.FloatButtonSaveLocation == true and Window.TitleBar and Window.TitleBar.Frame then
-			pcall(function()
-				if Window.TitleBar.ResetFloatButton then
-					local old = Window.TitleBar.ResetFloatButton
-					if typeof(old) == "Instance" then old:Destroy()
-					elseif type(old) == "table" and old.Frame then old.Frame:Destroy() end
-				end
-			end)
-			local NewC = Creator.New
-			local resetIcon = "rbxassetid://10734940376" -- lucide-rotate-ccw (hardcoded, always works)
-			local btn = NewC("TextButton", {
-				Name = "ResetFloatButton",
-				Size = UDim2.fromOffset(28, 28),
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -66, 0, 6),
-				BackgroundTransparency = 1,
-				Text = "",
-				AutoButtonColor = false,
-				ZIndex = 80,
-				Parent = Window.TitleBar.Frame,
-			}, {
-				NewC("ImageLabel", {
-					Name = "Icon",
-					Image = resetIcon,
-					Size = UDim2.fromOffset(16, 16),
-					Position = UDim2.fromScale(0.5, 0.5),
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					BackgroundTransparency = 1,
-					ZIndex = 81,
-					ThemeTag = { ImageColor3 = "Text" },
-				}),
-			})
-			btn.MouseButton1Click:Connect(function()
-				Window:Dialog({
-					Title = "Reset Float Button",
-					Content = "Are you sure you want to reset the floating button position to default?",
-					Buttons = {
-						{ Title = "Yes", Callback = function()
-							pcall(function()
-								if type(isfile) == "function" and isfile("GenesisXYZ/float_button.json") and type(delfile) == "function" then
-									delfile("GenesisXYZ/float_button.json")
-								end
-							end)
-							if Library._FloatButton then
-								Library._FloatButton.AnchorPoint = Vector2.new(0, 0)
-								Library._FloatButton.Position = Library._DefaultFloatPos or UDim2.new(0.1021, 0, 0.0743, 0)
-							end
-						end },
-						{ Title = "No" },
-					},
-				})
-			end)
-			Window.TitleBar.ResetFloatButton = btn
-		end
 
 		if Library.UseAcrylic then
 			Window.AcrylicPaint.AddParent(Window.Root)
