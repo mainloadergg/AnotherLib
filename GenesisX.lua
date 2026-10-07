@@ -393,71 +393,72 @@ local function CloseOpen()
 	Library._SaveFloatPos = SaveFloatPos
 	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
-	local function update(input)
+	local function applyPos(input)
 		local delta = input.Position - dragStart
-		Close_ImageButton.Position = UDim2.new(
-			startPos.X.Scale, startPos.X.Offset + delta.X,
-			startPos.Y.Scale, startPos.Y.Offset + delta.Y
-		)
+		-- use offset-only while dragging for predictable movement
+		local vs = Camera.ViewportSize
+		local baseX = startAbs.X + delta.X
+		local baseY = startAbs.Y + delta.Y
+		baseX = math.clamp(baseX, 0, math.max(0, vs.X - 40))
+		baseY = math.clamp(baseY, 0, math.max(0, vs.Y - 40))
+		Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
+		Close_ImageButton.Position = UDim2.fromOffset(baseX, baseY)
 	end
 
-	local function EndDrag(input)
+	local startAbs = Vector2.new(0, 0)
+
+	local function EndDrag()
 		if not dragging then return end
-		if activeInput and input and activeInput ~= input
-			and input.UserInputType == Enum.UserInputType.Touch then
-			return
-		end
 		local wasDrag = didDrag
 		dragging = false
 		activeInput = nil
 		if wasDrag then
 			Library._FloatJustDragged = true
 			SaveFloatPos()
-			task.delay(0.15, function()
+			task.delay(0.2, function()
 				Library._FloatJustDragged = false
 			end)
 		end
 	end
 
 	Close_ImageButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
 			didDrag = false
 			activeInput = input
 			dragStart = input.Position
-			startPos = Close_ImageButton.Position
+			startAbs = Close_ImageButton.AbsolutePosition
 		end
 	end)
 
-	Close_ImageButton.InputChanged:Connect(function(input)
+	UserInputService.InputChanged:Connect(function(input)
 		if not dragging then return end
 		if input.UserInputType ~= Enum.UserInputType.MouseMovement
 			and input.UserInputType ~= Enum.UserInputType.Touch then
 			return
 		end
+		-- for touch, only track the same finger
+		if input.UserInputType == Enum.UserInputType.Touch and activeInput and input ~= activeInput then
+			return
+		end
 		local delta = input.Position - dragStart
-		if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+		if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
 			didDrag = true
 		end
-		update(input)
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = input.Position - dragStart
-			if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
-				didDrag = true
-			end
-			update(input)
-		end
+		applyPos(input)
 	end)
 
 	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			EndDrag(input)
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
 		end
+		if input.UserInputType == Enum.UserInputType.Touch and activeInput and input ~= activeInput then
+			return
+		end
+		EndDrag()
 	end)
 
 	return Close_ImageButton
@@ -3126,26 +3127,36 @@ Components.Window = (function()
 			FloatButtonSaveLocation = (Config.FloatButtonSaveLocation == true),
 		})
 
-		-- Safety net: inject reset float button if flag on and missing
-		if Config.FloatButtonSaveLocation == true and Window.TitleBar and Window.TitleBar.Frame and not Window.TitleBar.ResetFloatButton then
+		-- Always inject visible reset float button when save-location is enabled
+		if Config.FloatButtonSaveLocation == true and Window.TitleBar and Window.TitleBar.Frame then
+			pcall(function()
+				if Window.TitleBar.ResetFloatButton then
+					local old = Window.TitleBar.ResetFloatButton
+					if typeof(old) == "Instance" then old:Destroy()
+					elseif type(old) == "table" and old.Frame then old.Frame:Destroy() end
+				end
+			end)
 			local NewC = Creator.New
-			local resetIcon = Library:GetIcon("rotate-ccw") or Library:GetIcon("refresh-cw") or "rbxassetid://10734886281"
+			local resetIcon = "rbxassetid://10734940376" -- lucide-rotate-ccw (hardcoded, always works)
 			local btn = NewC("TextButton", {
 				Name = "ResetFloatButton",
-				Size = UDim2.new(0, 28, 0, 28),
+				Size = UDim2.fromOffset(28, 28),
 				AnchorPoint = Vector2.new(1, 0),
 				Position = UDim2.new(1, -66, 0, 6),
 				BackgroundTransparency = 1,
 				Text = "",
-				ZIndex = 60,
+				AutoButtonColor = false,
+				ZIndex = 80,
 				Parent = Window.TitleBar.Frame,
 			}, {
 				NewC("ImageLabel", {
+					Name = "Icon",
 					Image = resetIcon,
 					Size = UDim2.fromOffset(16, 16),
 					Position = UDim2.fromScale(0.5, 0.5),
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					BackgroundTransparency = 1,
+					ZIndex = 81,
 					ThemeTag = { ImageColor3 = "Text" },
 				}),
 			})
