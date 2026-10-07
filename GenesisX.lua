@@ -349,22 +349,17 @@ local function CloseOpen()
 	local startPos = nil
 	local moved = false
 
-	local startAbs = Vector2.zero
-
 	local function SaveFloatPos()
 		pcall(function()
 			if type(writefile) ~= "function" then return end
 			if type(isfolder) == "function" and type(makefolder) == "function" then
 				if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
 			end
-			-- Always store TOP-LEFT as viewport scale (AnchorPoint 0,0) — no center mismatch
 			local vs = Camera.ViewportSize
 			local abs = Close_ImageButton.AbsolutePosition
-			local x = abs.X / math.max(vs.X, 1)
-			local y = abs.Y / math.max(vs.Y, 1)
 			writefile("GenesisXYZ/float_button.json", httpService:JSONEncode({
-				x = math.clamp(x, 0, 0.95),
-				y = math.clamp(y, 0, 0.95),
+				x = math.clamp(abs.X / math.max(vs.X, 1), 0, 0.95),
+				y = math.clamp(abs.Y / math.max(vs.Y, 1), 0, 0.95),
 			}))
 		end)
 	end
@@ -378,59 +373,69 @@ local function CloseOpen()
 			local x, y = tonumber(data.x), tonumber(data.y)
 			if not x or not y then return end
 			Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-			Close_ImageButton.Position = UDim2.fromScale(
-				math.clamp(x, 0, 0.95),
-				math.clamp(y, 0, 0.95)
-			)
+			Close_ImageButton.Position = UDim2.fromScale(math.clamp(x, 0, 0.95), math.clamp(y, 0, 0.95))
 		end)
 	end
 	Library._LoadFloatPos = LoadFloatPos
 	Library._SaveFloatPos = SaveFloatPos
 	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
-	-- Drag using AbsolutePosition so load/save match exactly
+	-- Classic drag (works on mobile) + UIS so finger can leave the button
 	Close_ImageButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch
-			or input.UserInputType == Enum.UserInputType.MouseButton1
-		then
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startAbs = Close_ImageButton.AbsolutePosition
-			Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					if moved then
-						Library._FloatJustDragged = true
-						SaveFloatPos()
-						task.delay(0.2, function()
-							Library._FloatJustDragged = false
-						end)
-					end
-				end
-			end)
-		end
-	end)
-
-	Close_ImageButton.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseButton1
 		then
 			return
 		end
+		dragging = true
+		moved = false
+		dragStart = input.Position
+		startPos = Close_ImageButton.Position
+	end)
+
+	local function DoDrag(input)
+		if not dragging then return end
 		local delta = input.Position - dragStart
 		if math.abs(delta.X) > 2 or math.abs(delta.Y) > 2 then
 			moved = true
 		end
-		local vs = Camera.ViewportSize
-		local nx = math.clamp(startAbs.X + delta.X, 0, math.max(0, vs.X - 48))
-		local ny = math.clamp(startAbs.Y + delta.Y, 0, math.max(0, vs.Y - 48))
-		Close_ImageButton.AnchorPoint = Vector2.new(0, 0)
-		Close_ImageButton.Position = UDim2.fromOffset(nx, ny)
+		Close_ImageButton.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
+
+	Close_ImageButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			DoDrag(input)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			DoDrag(input)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+		dragging = false
 		if moved then
+			Library._FloatJustDragged = true
 			SaveFloatPos()
+			task.delay(0.2, function()
+				Library._FloatJustDragged = false
+			end)
 		end
 	end)
 
@@ -3338,7 +3343,15 @@ ElementsTable.Button = (function()
 	Element.__index = Element
 	Element.__type = "Button"
 
-	function Element:New(Config)
+	function Element:New(Idx, Config)
+		if type(Idx) == "table" and Config == nil then
+			Config = Idx
+			Idx = Config.Title or "Button"
+		end
+		Config = Config or {}
+		if not Config.Title and type(Idx) == "string" then
+			Config.Title = Idx
+		end
 		assert(Config.Title, "Button - Missing Title")
 		Config.Callback = Config.Callback or function() end
 
@@ -4168,7 +4181,14 @@ ElementsTable.Paragraph = (function()
 	Paragraph.__index = Paragraph
 	Paragraph.__type = "Paragraph"
 
-	function Paragraph:New(Config)
+	function Paragraph:New(Idx, Config)
+		if type(Idx) == "table" and Config == nil then
+			Config = Idx
+		end
+		Config = Config or {}
+		if not Config.Title and type(Idx) == "string" then
+			Config.Title = Idx
+		end
 		assert(Config.Title, "Paragraph - Missing Title")
 		Config.Content = Config.Content or ""
 
@@ -4192,9 +4212,12 @@ ElementsTable.DiscordInvite = (function()
 	Element.__index = Element
 	Element.__type = "DiscordInvite"
 
-	function Element:New(Config)
+	function Element:New(Idx, Config)
+		if type(Idx) == "table" and Config == nil then
+			Config = Idx
+		end
 		Config = type(Config) == "table" and Config or {}
-		local Title = Config.Title or "Discord"
+		local Title = Config.Title or (type(Idx) == "string" and Idx) or "Discord"
 		local Desc = Config.Desc or Config.Description or "Join our community"
 		local Invite = Config.Invite or "https://discord.gg/"
 		local Logo = Config.Logo
@@ -6168,6 +6191,13 @@ end
 
 for _, ElementComponent in pairs(ElementsTable) do
 	Elements["Add" .. ElementComponent.__type] = function(self, Idx, Config)
+		-- allow AddX({ Title = ... }) or AddX("id", { Title = ... })
+		if type(Idx) == "table" and Config == nil then
+			Config = Idx
+			Idx = Config.Idx or Config.Title or (ElementComponent.__type .. "_" .. tostring(math.floor(tick() * 1000) % 1000000))
+		elseif type(Config) ~= "table" then
+			Config = {}
+		end
 		ElementComponent.Container = self.Container
 		ElementComponent.Type = self.Type
 		ElementComponent.ScrollFrame = self.ScrollFrame
