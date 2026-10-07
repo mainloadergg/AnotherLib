@@ -7021,6 +7021,7 @@ function Library:CreateSidePanel(Config)
 		local t = Themes[tname] or Themes.GenesisX
 		local function C(k) return t[k] end
 		PaintBg.BackgroundColor3 = C("AcrylicMain")
+		PaintBg.BackgroundTransparency = 0.15
 		PaintGrad.Color = C("AcrylicGradient")
 		PaintStroke.Color = C("AcrylicBorder")
 		if PaintAccent then PaintAccent.Color = C("Accent") end
@@ -7030,8 +7031,20 @@ function Library:CreateSidePanel(Config)
 		Divider.BackgroundColor3 = C("TitleBarLine")
 		Scroll.ScrollBarImageColor3 = C("Accent")
 		Handle.ImageColor3 = C("Text")
+		-- reflection for this panel's theme
+		local old = Paint:FindFirstChild("GenesisShine")
+		if old then old:Destroy() end
+		if ({
+			["Genesis V2"] = true,
+			["Spectrum X"] = true,
+			["Darker X"] = true,
+		})[tname] then
+			Library:_MakeShine(Paint, 8, "normal", tname)
+		end
 	end
 	Library._ApplySideTheme = ApplySideTheme
+	Library._SideThemeAppliers = Library._SideThemeAppliers or {}
+	Library._SideThemeAppliers[panelKey] = ApplySideTheme
 	ApplySideTheme()
 
 	local Side = {
@@ -7043,6 +7056,7 @@ function Library:CreateSidePanel(Config)
 		ScrollFrame = Scroll,
 		Root = Panel,
 		Handle = Handle,
+		Paint = Paint,
 		Type = "SidePanel",
 		Key = panelKey,
 		Side = isLeft and "Left" or "Right",
@@ -7098,10 +7112,18 @@ function Library:CreateSidePanel(Config)
 		end
 	end
 
+	-- initial reflection after panel exists
+	task.defer(function()
+		ApplySideTheme()
+	end)
+
 	function Side:Destroy()
 		pcall(function() gui:Destroy() end)
 		if Library._SidePanels and Library._SidePanels[panelKey] == Side then
 			Library._SidePanels[panelKey] = nil
+		end
+		if Library._SideThemeAppliers then
+			Library._SideThemeAppliers[panelKey] = nil
 		end
 	end
 
@@ -7216,8 +7238,16 @@ function Library:SetTheme(Value)
 			Library:_UpdateV2Shine()
 		end)
 		pcall(function()
+			for _, fn in pairs(Library._SideThemeAppliers or {}) do
+				pcall(fn)
+			end
 			if Library._ApplySideTheme then
 				Library._ApplySideTheme()
+			end
+		end)
+		pcall(function()
+			if Library._RefreshOverlayShines then
+				Library:_RefreshOverlayShines()
 			end
 		end)
 		pcall(function()
@@ -7230,7 +7260,7 @@ end
 -- intensity: "normal" (window) | "strong" (small widgets)
 -- CanvasGroup clips the beam to rounded corners (Frame+UICorner alone looks square)
 -- Gentle reflection sweep (must stay inside host bounds — no hard clipping artifacts)
-function Library:_MakeShine(Host, CornerRadius, Intensity)
+function Library:_MakeShine(Host, CornerRadius, Intensity, ThemeName)
 	if not Host then return nil end
 	CornerRadius = CornerRadius or 8
 	Intensity = Intensity or "normal"
@@ -7257,7 +7287,7 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 	local baseT = strong and 0.55 or 0.82
 	local peakT = strong and 0.42 or 0.78
 
-	local themeName = Library.Theme
+	local themeName = ThemeName or Library.Theme
 	local beamColor = Color3.fromRGB(200, 160, 255)
 	local beamBright = Color3.fromRGB(235, 210, 255)
 	local gradA = Color3.fromRGB(150, 80, 255)
@@ -7275,6 +7305,12 @@ function Library:_MakeShine(Host, CornerRadius, Intensity)
 		gradA = Color3.fromRGB(80, 80, 90)
 		gradB = Color3.fromRGB(255, 255, 255)
 		gradC = Color3.fromRGB(160, 160, 170)
+	elseif themeName == "Genesis V2" then
+		beamColor = Color3.fromRGB(200, 160, 255)
+		beamBright = Color3.fromRGB(235, 210, 255)
+		gradA = Color3.fromRGB(150, 80, 255)
+		gradB = Color3.fromRGB(245, 230, 255)
+		gradC = Color3.fromRGB(170, 100, 255)
 	end
 
 	local beam = New("Frame", {
@@ -7356,19 +7392,39 @@ function Library:_UpdateV2Shine()
 	end)
 end
 
-function Library:_RefreshOverlayShines()
-	local useShine = ({
+local function IsReflectiveTheme(name)
+	return ({
 		["Genesis V2"] = true,
 		["Spectrum X"] = true,
 		["Darker X"] = true,
-	})[Library.Theme] == true
-	-- side handle follows main UI style shine only on V2
-	-- side handle is icon-only — no shine plate
-	if Library._SidePaint then
-		local old = Library._SidePaint:FindFirstChild("GenesisShine")
-		if old then old:Destroy() end
-		if useShine then
-			Library:_MakeShine(Library._SidePaint, 8, "normal")
+	})[name] == true
+end
+
+function Library:_RefreshOverlayShines()
+	-- shine every side panel with ITS own theme (not only main Library.Theme)
+	for _, side in pairs(Library._SidePanels or {}) do
+		local paint = side and side.Paint
+		if paint and paint.Parent then
+			local old = paint:FindFirstChild("GenesisShine")
+			if old then old:Destroy() end
+			local tname = side.Theme or Library.Theme
+			if IsReflectiveTheme(tname) then
+				Library:_MakeShine(paint, 8, "normal", tname)
+			end
+		end
+	end
+	-- legacy single pointer
+	if Library._SidePaint and Library._SidePaint.Parent then
+		local has = false
+		for _, side in pairs(Library._SidePanels or {}) do
+			if side.Paint == Library._SidePaint then has = true break end
+		end
+		if not has then
+			local old = Library._SidePaint:FindFirstChild("GenesisShine")
+			if old then old:Destroy() end
+			if IsReflectiveTheme(Library.Theme) then
+				Library:_MakeShine(Library._SidePaint, 8, "normal", Library.Theme)
+			end
 		end
 	end
 end
