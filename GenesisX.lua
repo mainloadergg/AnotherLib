@@ -380,23 +380,42 @@ local function CloseOpen()
 	Library._SaveFloatPos = SaveFloatPos
 	Library._DefaultFloatPos = UDim2.new(0.1021, 0, 0.0743, 0)
 
-	-- Classic drag (works on mobile) + UIS so finger can leave the button
+	-- Tap = open | Drag past threshold = move (no open on release)
+	-- Only tracks the finger/button that started on the float (ignores analog stick)
+	local DRAG_THRESHOLD = 14
+	local activeInput = nil
+
+	local function IsOurInput(input)
+		if not activeInput then return false end
+		if input.UserInputType == Enum.UserInputType.Touch then
+			return input == activeInput
+		end
+		-- mouse: any mouse movement while holding button1 counts
+		return input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+	end
+
 	Close_ImageButton.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.Touch
 			and input.UserInputType ~= Enum.UserInputType.MouseButton1
 		then
 			return
 		end
+		if dragging then return end
 		dragging = true
 		moved = false
+		activeInput = input
 		dragStart = input.Position
 		startPos = Close_ImageButton.Position
 	end)
 
 	local function DoDrag(input)
-		if not dragging then return end
+		if not dragging or not IsOurInput(input) then return end
 		local delta = input.Position - dragStart
-		if math.abs(delta.X) > 2 or math.abs(delta.Y) > 2 then
+		if not moved then
+			if math.abs(delta.X) < DRAG_THRESHOLD and math.abs(delta.Y) < DRAG_THRESHOLD then
+				return -- still a tap; don't move the button
+			end
 			moved = true
 		end
 		Close_ImageButton.Position = UDim2.new(
@@ -405,37 +424,36 @@ local function CloseOpen()
 		)
 	end
 
-	Close_ImageButton.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			DoDrag(input)
-		end
-	end)
-
 	UserInputService.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			DoDrag(input)
-		end
+		DoDrag(input)
 	end)
 
 	UserInputService.InputEnded:Connect(function(input)
 		if not dragging then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch
-		then
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if input ~= activeInput then return end
+		elseif input.UserInputType ~= Enum.UserInputType.MouseButton1 then
 			return
 		end
+
+		local wasDrag = moved
 		dragging = false
-		if moved then
+		activeInput = nil
+
+		if wasDrag then
 			Library._FloatJustDragged = true
 			SaveFloatPos()
-			task.delay(0.2, function()
+			task.delay(0.25, function()
 				Library._FloatJustDragged = false
 			end)
+		else
+			-- pure tap → toggle main window
+			if Library.Window then
+				Library.Window:Minimize()
+				if Close_ImageButton.Visible then
+					Close_ImageButton.Visible = false
+				end
+			end
 		end
 	end)
 
@@ -2825,15 +2843,7 @@ Components.TitleBar = (function()
 			})
 		end)
 
-		Close_ImageButton.Activated:Connect(function()
-			-- ignore click that was actually a drag
-			if Library._FloatJustDragged then
-				Library._FloatJustDragged = false
-				return
-			end
-			Library.Window:Minimize()
-			if Close_ImageButton.Visible then Close_ImageButton.Visible = false end
-		end)
+		-- Open/close is handled in float InputEnded (tap vs drag). No Activated here.
 
 		return TitleBar
 	end
