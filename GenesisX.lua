@@ -3320,13 +3320,13 @@ Components.Window = (function()
 				ThemeTag = {
 					TextColor3 = "SubText",
 				},
-			end)
+			})
 
 			New("UISizeConstraint", {
 				MinSize = Vector2.new(320, 170),
 				MaxSize = Vector2.new(520, 400),
 				Parent = Dialog.Root,
-			end)
+			})
 
 			local textH = math.max(Content.TextBounds.Y, 36)
 			local height = math.clamp(textH + 130, 170, 320)
