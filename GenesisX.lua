@@ -1033,8 +1033,10 @@ function Creator.OverrideTag(Object, Properties)
 end
 
 function Creator.GetThemeProperty(Property)
-	if Themes[Library.Theme][Property] then
-		return Themes[Library.Theme][Property]
+	local theme = Themes[Library.Theme] or Themes["GenesisX"]
+	local val = theme and theme[Property]
+	if val ~= nil then
+		return val
 	end
 	return Themes["GenesisX"][Property]
 end
@@ -2147,32 +2149,25 @@ Components.Dialog = (function()
 		local TintMotor, TintTransparency = Creator.SpringMotor(1, NewDialog.TintFrame, "BackgroundTransparency", true)
 
 		NewDialog.ButtonHolder = New("Frame", {
-			Size = UDim2.new(1, -40, 1, -40),
+			Size = UDim2.new(1, -36, 1, -12),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			BackgroundTransparency = 1,
 		}, {
 			New("UIListLayout", {
-				Padding = UDim.new(0, 10),
+				Padding = UDim.new(0, 12),
 				FillDirection = Enum.FillDirection.Horizontal,
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
 				SortOrder = Enum.SortOrder.LayoutOrder,
 			}),
 		})
 
 		NewDialog.ButtonHolderFrame = New("Frame", {
-			Size = UDim2.new(1, 0, 0, 70),
-			Position = UDim2.new(0, 0, 1, -70),
-			ThemeTag = {
-				BackgroundColor3 = "DialogHolder",
-			},
+			Size = UDim2.new(1, 0, 0, 64),
+			Position = UDim2.new(0, 0, 1, -64),
+			BackgroundTransparency = 1,
 		}, {
-			New("Frame", {
-				Size = UDim2.new(1, 0, 0, 1),
-				ThemeTag = {
-					BackgroundColor3 = "DialogHolderLine",
-				},
-			}),
 			NewDialog.ButtonHolder,
 		})
 
@@ -2184,10 +2179,10 @@ Components.Dialog = (function()
 			),
 			Text = "Dialog",
 			TextColor3 = Color3.fromRGB(240, 240, 240),
-			TextSize = 18,
+			TextSize = 16,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Size = UDim2.new(1, -40, 0, 22),
-			Position = UDim2.fromOffset(20, 20),
+			Position = UDim2.fromOffset(22, 18),
 			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BackgroundTransparency = 1,
 			ThemeTag = {
@@ -2202,7 +2197,7 @@ Components.Dialog = (function()
 		local ScaleMotor, Scale = Creator.SpringMotor(1.1, NewDialog.Scale, "Scale")
 
 		NewDialog.Root = New("CanvasGroup", {
-			Size = UDim2.fromOffset(340, 180),
+			Size = UDim2.fromOffset(360, 190),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			GroupTransparency = 1,
@@ -2212,11 +2207,11 @@ Components.Dialog = (function()
 			},
 		}, {
 			New("UICorner", {
-				CornerRadius = UDim.new(0, 10),
+				CornerRadius = UDim.new(0, 12),
 			}),
 			New("UIStroke", {
-				Transparency = 0.25,
-				Thickness = 1.4,
+				Transparency = 0.2,
+				Thickness = 1.5,
 				ThemeTag = {
 					Color = "Accent",
 				},
@@ -2225,7 +2220,6 @@ Components.Dialog = (function()
 			NewDialog.Title,
 			NewDialog.ButtonHolderFrame,
 		})
-		-- soft reflection on dialog when theme supports it
 		task.defer(function()
 			local reflective = ({
 				["Genesis V2"] = true,
@@ -2233,7 +2227,7 @@ Components.Dialog = (function()
 				["Darker X"] = true,
 			})[Library.Theme]
 			if reflective and Library._MakeShine then
-				Library:_MakeShine(NewDialog.Root, 10, "normal")
+				Library:_MakeShine(NewDialog.Root, 12, "normal", Library.Theme)
 			end
 		end)
 
@@ -3271,10 +3265,30 @@ Components.Window = (function()
 			end)
 		end)
 
-		function Window:Minimize()
-			Window.Minimized = not Window.Minimized
+		function Window:Minimize(ForceState)
+			if ForceState == true then
+				Window.Minimized = true
+			elseif ForceState == false then
+				Window.Minimized = false
+			else
+				Window.Minimized = not Window.Minimized
+			end
 			Window.Root.Visible = not Window.Minimized
 			pcall(SwapIco)
+			if Window.Minimized then
+				if Close_ImageButton then Close_ImageButton.Visible = true end
+			else
+				if Close_ImageButton then Close_ImageButton.Visible = false end
+			end
+			pcall(function()
+				if type(writefile) ~= "function" then return end
+				if type(isfolder) == "function" and type(makefolder) == "function" then
+					if not isfolder("GenesisXYZ") then makefolder("GenesisXYZ") end
+				end
+				writefile("GenesisXYZ/window_state.json", httpService:JSONEncode({
+					minimized = Window.Minimized == true,
+				}))
+			end)
 		end
 
 		function Window:Destroy()
@@ -3287,37 +3301,38 @@ Components.Window = (function()
 		local DialogModule = Components.Dialog:Init(Window)
 		function Window:Dialog(Config)
 			local Dialog = DialogModule:Create()
-			Dialog.Title.Text = Config.Title
+			Dialog.Title.Text = Config.Title or "Confirm"
 
 			local Content = New("TextLabel", {
 				FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
-				Text = Config.Content,
+				Text = Config.Content or "",
 				TextColor3 = Color3.fromRGB(240, 240, 240),
-				TextSize = 14,
+				TextSize = 13,
+				TextTransparency = 0.12,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
-				Size = UDim2.new(1, -40, 1, 0),
-				Position = UDim2.fromOffset(20, 60),
+				TextWrapped = true,
+				Size = UDim2.new(1, -44, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Position = UDim2.fromOffset(22, 48),
 				BackgroundTransparency = 1,
 				Parent = Dialog.Root,
-				ClipsDescendants = false,
 				ThemeTag = {
-					TextColor3 = "Text",
+					TextColor3 = "SubText",
 				},
-			})
+			end)
 
 			New("UISizeConstraint", {
-				MinSize = Vector2.new(300, 165),
-				MaxSize = Vector2.new(620, math.huge),
+				MinSize = Vector2.new(320, 170),
+				MaxSize = Vector2.new(520, 400),
 				Parent = Dialog.Root,
-			})
+			end)
 
-			Dialog.Root.Size = UDim2.fromOffset(Content.TextBounds.X + 40, 165)
-			if Content.TextBounds.X + 40 > Window.Size.X.Offset - 120 then
-				Dialog.Root.Size = UDim2.fromOffset(Window.Size.X.Offset - 120, 165)
-				Content.TextWrapped = true
-				Dialog.Root.Size = UDim2.fromOffset(Window.Size.X.Offset - 120, Content.TextBounds.Y + 150)
-			end
+			local textH = math.max(Content.TextBounds.Y, 36)
+			local height = math.clamp(textH + 130, 170, 320)
+			local width = math.clamp((Window.Size and Window.Size.X.Offset or 400) - 100, 320, 420)
+			Dialog.Root.Size = UDim2.fromOffset(width, height)
+			Content.Size = UDim2.new(1, -44, 0, textH + 8)
 
 			for _, Button in next, Config.Buttons do
 				Dialog:Button(Button.Title, Button.Callback)
@@ -6692,10 +6707,27 @@ function Library:CreateWindow(Config)
 	})
 
 	Library.Window = Window
-	InterfaceManager:SetTheme(Config.Theme or "GenesisX")
-	Library:SetTheme(Config.Theme or "GenesisX")
+	local themeName = Config.Theme or "GenesisX"
+	if not Themes[themeName] then themeName = "GenesisX" end
+	Library.Theme = themeName
+	-- prevent InterfaceManager old settings from forcing another theme
+	pcall(function()
+		InterfaceManager.Settings = InterfaceManager.Settings or {}
+		InterfaceManager.Settings.Theme = themeName
+	end)
+	InterfaceManager:SetTheme(themeName)
+	Library:SetTheme(themeName)
+	pcall(function() Creator.UpdateTheme() end)
 	pcall(function()
 		Library:_UpdateV2Shine()
+	end)
+	task.defer(function()
+		Library.Theme = themeName
+		pcall(function() Creator.UpdateTheme() end)
+		pcall(function() Library:_UpdateV2Shine() end)
+		pcall(function()
+			for _, fn in pairs(Library._SideThemeAppliers or {}) do pcall(fn) end
+		end)
 	end)
 
 	-- AutoAdapt: fit within viewport with margin from top/bottom
@@ -6726,6 +6758,19 @@ function Library:CreateWindow(Config)
 	if Window.AutoAdapt then
 		task.defer(ApplyAutoAdapt)
 	end
+
+	-- restore open/hidden state from last session
+	pcall(function()
+		if type(isfile) ~= "function" or not isfile("GenesisXYZ/window_state.json") then return end
+		local data = httpService:JSONDecode(readfile("GenesisXYZ/window_state.json"))
+		if type(data) == "table" and data.minimized == true then
+			task.defer(function()
+				if Window and Window.Minimize then
+					Window:Minimize(true)
+				end
+			end)
+		end
+	end)
 
 	-- keep centered / adapted on viewport resize
 	pcall(function()
@@ -7231,29 +7276,29 @@ function Library:_ApplyFloatTheme()
 end
 
 function Library:SetTheme(Value)
-	if table.find(Library.Themes, Value) then
-		Library.Theme = Value
-		Creator.UpdateTheme()
-		pcall(function()
-			Library:_UpdateV2Shine()
-		end)
-		pcall(function()
-			for _, fn in pairs(Library._SideThemeAppliers or {}) do
-				pcall(fn)
-			end
-			if Library._ApplySideTheme then
-				Library._ApplySideTheme()
-			end
-		end)
-		pcall(function()
-			if Library._RefreshOverlayShines then
-				Library:_RefreshOverlayShines()
-			end
-		end)
-		pcall(function()
-			Library:_ApplyFloatTheme()
-		end)
-	end
+	if type(Value) ~= "string" then return end
+	if not Themes[Value] then return end
+	Library.Theme = Value
+	pcall(function() Creator.UpdateTheme() end)
+	pcall(function()
+		Library:_UpdateV2Shine()
+	end)
+	pcall(function()
+		for _, fn in pairs(Library._SideThemeAppliers or {}) do
+			pcall(fn)
+		end
+		if Library._ApplySideTheme then
+			Library._ApplySideTheme()
+		end
+	end)
+	pcall(function()
+		if Library._RefreshOverlayShines then
+			Library:_RefreshOverlayShines()
+		end
+	end)
+	pcall(function()
+		Library:_ApplyFloatTheme()
+	end)
 end
 
 -- Reflection sweep used by window / stats / side panel
