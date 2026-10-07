@@ -1002,10 +1002,26 @@ function Creator.Disconnect()
 	end
 end
 
-function Creator.UpdateTheme()
+-- Per-window/panel theme: objects store Theme; context used while building
+function Creator.GetThemeProperty(Property, ThemeName)
+	local name = ThemeName or Library._ThemeContext or Library.Theme
+	local theme = Themes[name] or Themes[Library.Theme] or Themes["GenesisX"]
+	local val = theme and theme[Property]
+	if val ~= nil then
+		return val
+	end
+	return Themes["GenesisX"][Property]
+end
+
+function Creator.UpdateTheme(OnlyTheme)
 	for Instance, Object in next, Creator.Registry do
-		for Property, ColorIdx in next, Object.Properties do
-			Instance[Property] = Creator.GetThemeProperty(ColorIdx)
+		local tname = Object.Theme or Library.Theme
+		if not OnlyTheme or tname == OnlyTheme then
+			for Property, ColorIdx in next, Object.Properties do
+				pcall(function()
+					Instance[Property] = Creator.GetThemeProperty(ColorIdx, tname)
+				end)
+			end
 		end
 	end
 
@@ -1016,29 +1032,34 @@ end
 
 function Creator.AddThemeObject(Object, Properties)
 	local Idx = #Creator.Registry + 1
+	local tname = Library._ThemeContext or Library.Theme
 	local Data = {
 		Object = Object,
 		Properties = Properties,
 		Idx = Idx,
+		Theme = tname,
 	}
 
 	Creator.Registry[Object] = Data
-	Creator.UpdateTheme()
+	-- apply this object's theme immediately (not full registry)
+	for Property, ColorIdx in next, Properties do
+		pcall(function()
+			Object[Property] = Creator.GetThemeProperty(ColorIdx, tname)
+		end)
+	end
 	return Object
 end
 
 function Creator.OverrideTag(Object, Properties)
-	Creator.Registry[Object].Properties = Properties
-	--Creator.UpdateTheme()
-end
-
-function Creator.GetThemeProperty(Property)
-	local theme = Themes[Library.Theme] or Themes["GenesisX"]
-	local val = theme and theme[Property]
-	if val ~= nil then
-		return val
+	local data = Creator.Registry[Object]
+	if not data then return end
+	data.Properties = Properties
+	local tname = data.Theme or Library._ThemeContext or Library.Theme
+	for Property, ColorIdx in next, Properties do
+		pcall(function()
+			Object[Property] = Creator.GetThemeProperty(ColorIdx, tname)
+		end)
 	end
-	return Themes["GenesisX"][Property]
 end
 
 function Creator.New(Name, Properties, Children)
@@ -1619,16 +1640,20 @@ Components.Element = (function()
 			)
 
 			Creator.AddSignal(Element.Frame.MouseEnter, function()
-				SetTransparency(Creator.GetThemeProperty("ElementTransparency") - Creator.GetThemeProperty("HoverChange"))
+				local t = (Creator.Registry[Element.Frame] and Creator.Registry[Element.Frame].Theme) or Library._ThemeContext or Library.Theme
+				SetTransparency(Creator.GetThemeProperty("ElementTransparency", t) - Creator.GetThemeProperty("HoverChange", t))
 			end)
 			Creator.AddSignal(Element.Frame.MouseLeave, function()
-				SetTransparency(Creator.GetThemeProperty("ElementTransparency"))
+				local t = (Creator.Registry[Element.Frame] and Creator.Registry[Element.Frame].Theme) or Library._ThemeContext or Library.Theme
+				SetTransparency(Creator.GetThemeProperty("ElementTransparency", t))
 			end)
 			Creator.AddSignal(Element.Frame.MouseButton1Down, function()
-				SetTransparency(Creator.GetThemeProperty("ElementTransparency") + Creator.GetThemeProperty("HoverChange"))
+				local t = (Creator.Registry[Element.Frame] and Creator.Registry[Element.Frame].Theme) or Library._ThemeContext or Library.Theme
+				SetTransparency(Creator.GetThemeProperty("ElementTransparency", t) + Creator.GetThemeProperty("HoverChange", t))
 			end)
 			Creator.AddSignal(Element.Frame.MouseButton1Up, function()
-				SetTransparency(Creator.GetThemeProperty("ElementTransparency") - Creator.GetThemeProperty("HoverChange"))
+				local t = (Creator.Registry[Element.Frame] and Creator.Registry[Element.Frame].Theme) or Library._ThemeContext or Library.Theme
+				SetTransparency(Creator.GetThemeProperty("ElementTransparency", t) - Creator.GetThemeProperty("HoverChange", t))
 			end)
 		end
 
@@ -1997,11 +2022,13 @@ Components.Tab = (function()
 			-- lock the specific side scroll (TwoSides) or the main tab scroll
 			Section.ScrollFrame = (type(parent) == "userdata" and parent:IsA("ScrollingFrame")) and parent or Tab.ContainerFrame
 			Section.Root = SectionFrame.Root
+			Section.Theme = Tab.Theme or Library.Theme
 
 			setmetatable(Section, Elements)
 			return Section
 		end
 
+		Tab.Theme = Library.Theme
 		setmetatable(Tab, Elements)
 		return Tab
 	end
@@ -2303,8 +2330,8 @@ Components.Notification = (function()
 		end)
 		Notification.Gui = NotifyGui
 		Notification.Holder = New("Frame", {
-			Position = UDim2.new(1, -16, 1, -16),
-			Size = UDim2.new(0, 310, 1, -32),
+			Position = UDim2.new(1, -18, 1, -18),
+			Size = UDim2.new(0, 320, 1, -36),
 			AnchorPoint = Vector2.new(1, 1),
 			BackgroundTransparency = 1,
 			ZIndex = 100,
@@ -2314,7 +2341,7 @@ Components.Notification = (function()
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				VerticalAlignment = Enum.VerticalAlignment.Bottom,
-				Padding = UDim.new(0, 12),
+				Padding = UDim.new(0, 10),
 			}),
 		})
 	end
@@ -2332,18 +2359,20 @@ Components.Notification = (function()
 		NewNotification.AcrylicPaint = Acrylic.AcrylicPaint()
 
 		NewNotification.Title = New("TextLabel", {
-			Position = UDim2.new(0, 14, 0, 17),
+			Position = UDim2.new(0, 16, 0, 14),
 			Text = Config.Title,
 			RichText = true,
 			TextColor3 = Color3.fromRGB(255, 255, 255),
 			TextTransparency = 0,
-			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
-			TextSize = 13,
+			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+			TextSize = 14,
 			TextXAlignment = "Left",
 			TextYAlignment = "Center",
-			Size = UDim2.new(1, -12, 0, 12),
-			TextWrapped = true,
+			Size = UDim2.new(1, -48, 0, 18),
+			TextWrapped = false,
+			TextTruncate = Enum.TextTruncate.AtEnd,
 			BackgroundTransparency = 1,
+			ZIndex = 3,
 			ThemeTag = {
 				TextColor3 = "Text",
 			},
@@ -2353,7 +2382,8 @@ Components.Notification = (function()
 			FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json"),
 			Text = Config.Content,
 			TextColor3 = Color3.fromRGB(240, 240, 240),
-			TextSize = 14,
+			TextSize = 13,
+			TextTransparency = 0.08,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			AutomaticSize = Enum.AutomaticSize.Y,
 			Size = UDim2.new(1, 0, 0, 14),
@@ -2361,7 +2391,7 @@ Components.Notification = (function()
 			BackgroundTransparency = 1,
 			TextWrapped = true,
 			ThemeTag = {
-				TextColor3 = "Text",
+				TextColor3 = "SubText",
 			},
 		})
 
@@ -2385,13 +2415,14 @@ Components.Notification = (function()
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(14, 40),
-			Size = UDim2.new(1, -28, 0, 0),
+			Position = UDim2.fromOffset(16, 40),
+			Size = UDim2.new(1, -32, 0, 0),
+			ZIndex = 3,
 		}, {
 			New("UIListLayout", {
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				VerticalAlignment = Enum.VerticalAlignment.Center,
-				Padding = UDim.new(0, 3),
+				Padding = UDim.new(0, 4),
 			}),
 			NewNotification.ContentLabel,
 			NewNotification.SubContentLabel,
@@ -2399,19 +2430,24 @@ Components.Notification = (function()
 
 		NewNotification.CloseButton = New("TextButton", {
 			Text = "",
-			Position = UDim2.new(1, -14, 0, 13),
-			Size = UDim2.fromOffset(20, 20),
+			Position = UDim2.new(1, -10, 0, 10),
+			Size = UDim2.fromOffset(26, 26),
 			AnchorPoint = Vector2.new(1, 0),
 			BackgroundTransparency = 1,
+			ZIndex = 5,
+			AutoButtonColor = false,
 		}, {
 			New("ImageLabel", {
-				Image = Components.Close,
-				Size = UDim2.fromOffset(16, 16),
+				Name = "Icon",
+				Image = Components.Assets.Close,
+				Size = UDim2.fromOffset(14, 14),
 				Position = UDim2.fromScale(0.5, 0.5),
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				BackgroundTransparency = 1,
+				ImageTransparency = 0.15,
+				ZIndex = 6,
 				ThemeTag = {
-					ImageColor3 = "Text",
+					ImageColor3 = "SubText",
 				},
 			}),
 		})
@@ -2458,7 +2494,7 @@ Components.Notification = (function()
 
 		function NewNotification:Open()
 			local ContentSize = NewNotification.LabelHolder.AbsoluteSize.Y
-			NewNotification.Holder.Size = UDim2.new(1, 0, 0, 58 + ContentSize)
+			NewNotification.Holder.Size = UDim2.new(1, 0, 0, 62 + ContentSize)
 
 			RootMotor:setGoal({
 				Scale = Spring(0, { frequency = 5 }),
@@ -2644,9 +2680,10 @@ Components.TitleBar = (function()
 					Position = UDim2.fromScale(0.5, 0.5),
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					BackgroundTransparency = 1,
+					ImageTransparency = 0.15,
 					Name = "Icon",
 					ThemeTag = {
-						ImageColor3 = "Text",
+						ImageColor3 = "SubText",
 					},
 				}),
 			})
@@ -6228,7 +6265,17 @@ for _, ElementComponent in pairs(ElementsTable) do
 		ElementComponent.ScrollFrame = self.ScrollFrame
 		ElementComponent.Library = Library
 
-		return ElementComponent:New(Idx, Config)
+		-- per-panel/window theme for this element's ThemeTags
+		local prevCtx = Library._ThemeContext
+		Library._ThemeContext = self.Theme or Library._ThemeContext or Library.Theme
+		local ok, result = pcall(function()
+			return ElementComponent:New(Idx, Config)
+		end)
+		Library._ThemeContext = prevCtx
+		if not ok then
+			error(result, 2)
+		end
+		return result
 	end
 end
 
@@ -7173,8 +7220,11 @@ function Library:CreateSidePanel(Config)
 	end
 
 	function Side:AddSection(SectionTitle, Icon)
-		local Section = { Type = "Section" }
+		local Section = { Type = "Section", Theme = sideThemeName }
+		local prevCtx = Library._ThemeContext
+		Library._ThemeContext = sideThemeName
 		local SectionFrame = Components.Section(SectionTitle, Scroll, Icon)
+		Library._ThemeContext = prevCtx
 		Section.Container = SectionFrame.Container
 		Section.ScrollFrame = Scroll
 		Section.Root = SectionFrame.Root
@@ -7278,7 +7328,16 @@ end
 function Library:SetTheme(Value)
 	if type(Value) ~= "string" then return end
 	if not Themes[Value] then return end
+	local prev = Library.Theme
 	Library.Theme = Value
+	-- re-bind main UI objects that followed the previous global theme
+	pcall(function()
+		for _, Object in next, Creator.Registry do
+			if Object.Theme == nil or Object.Theme == prev then
+				Object.Theme = Value
+			end
+		end
+	end)
 	pcall(function() Creator.UpdateTheme() end)
 	pcall(function()
 		Library:_UpdateV2Shine()
