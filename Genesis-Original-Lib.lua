@@ -1039,7 +1039,7 @@ GenesisX.Config = {
 }
 
 -- --- GENESIS REMASTER / EMOLIB VISUAL LAYER ---------------------------------
-GenesisX.RemasterVersion = "1.0.0"
+GenesisX.RemasterVersion = "1.1.0"
 GenesisX.PremiumTexture = "rbxassetid://8822777842" -- textura usada pela EmoLib
 
 -- Decorative, non-interactive image rendered behind UI controls.
@@ -1429,9 +1429,9 @@ function GenesisX:CreateWindow(config)
     local savedFont   = self:_LoadConfigFile("font.json", configFont or "Gotham")
     local savedTransparency = self:_LoadConfigFile("transparency.json", config.Transparency or 0)
     self.Config.Transparency = math.clamp(savedTransparency, 0, 1)
-    self._premiumTextureEnabled = config.Textured ~= false
+    self._premiumTextureEnabled = config.Textured == true
     self._premiumTextureId = config.HeaderTexture or self.PremiumTexture
-    self._reflectanceEnabled = config.ReflectanceEffect ~= false
+    self._reflectanceEnabled = config.ReflectanceEffect == true
 
     -- Override: if config explicitly set Theme/Font, use it and save
     local themeName = savedTheme
@@ -1676,22 +1676,38 @@ function GenesisX:CreateWindow(config)
 
     local function spawnHeaderButton(btnData)
         local btnW, btnH = self._headerBtnW, self._headerBtnH
-        local btn = Instance.new("ImageButton")
+        local btn = Instance.new("TextButton")
         btn.Name = (btnData.Type or "custom") .. "Btn"
-        btn.BackgroundTransparency = 1
+        btn.BackgroundColor3 = self.Theme.Card
+        btn.BackgroundTransparency = 0
         btn.Size = UDim2.new(0, btnW, 0, btnH)
-        btn.Image = self:FormatAssetId(btnData.Icon) or ""
-        btn.ImageColor3 = self.Theme.Accent
+        btn.Text = ""
         btn.AutoButtonColor = false
         btn.ZIndex = 14
         btn.Parent = self.Header
-        self:CreateCorner(btn, UDim.new(0, 6))
+        self:CreateCorner(btn, UDim.new(0, 8))
+        local stroke = self:CreateStroke(btn, self.Theme.Border, 1, 0.25)
+
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "Icon"
+        icon.BackgroundTransparency = 1
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+        icon.Size = UDim2.new(0, self:S(16), 0, self:S(16))
+        icon.Image = self:FormatAssetId(btnData.Icon) or ""
+        icon.ImageColor3 = self.Theme.Accent
+        icon.ZIndex = 15
+        icon.Parent = btn
 
         btn.MouseEnter:Connect(function()
-            self:Tween(btn, {ImageColor3 = self.Theme.AccentSecondary}, 0.15)
+            self:Tween(btn, {BackgroundColor3 = self.Theme.CardHover}, 0.15)
+            self:Tween(icon, {ImageColor3 = self.Theme.AccentSecondary}, 0.15)
+            if stroke then self:Tween(stroke, {Color = self.Theme.Accent, Transparency = 0.08}, 0.15) end
         end)
         btn.MouseLeave:Connect(function()
-            self:Tween(btn, {ImageColor3 = self.Theme.Accent}, 0.15)
+            self:Tween(btn, {BackgroundColor3 = self.Theme.Card}, 0.15)
+            self:Tween(icon, {ImageColor3 = self.Theme.Accent}, 0.15)
+            if stroke then self:Tween(stroke, {Color = self.Theme.Border, Transparency = 0.25}, 0.15) end
         end)
         btn.MouseButton1Click:Connect(function()
             if btnData.Action then
@@ -1779,8 +1795,8 @@ function GenesisX:CreateWindow(config)
     sidebarWrap.Name = "SidebarWrap"
     sidebarWrap.BackgroundColor3 = self.Theme.Sidebar
     sidebarWrap.BorderSizePixel = 0
-    sidebarWrap.Position = UDim2.new(0, 0, 0, headerHeight + 2)
-    sidebarWrap.Size = UDim2.new(0, sidebarWidth, 1, -(headerHeight + 2))
+    sidebarWrap.Position = UDim2.new(0, 0, 0, headerHeight)
+    sidebarWrap.Size = UDim2.new(0, sidebarWidth, 1, -headerHeight)
     sidebarWrap.ClipsDescendants = true
     sidebarWrap.ZIndex = 11
     sidebarWrap.Parent = self.MainFrame
@@ -1834,12 +1850,15 @@ function GenesisX:CreateWindow(config)
 
     self.ContentArea = Instance.new("Frame")
     self.ContentArea.Name = "ContentArea"
-    self.ContentArea.BackgroundTransparency = 1
+    self.ContentArea.BackgroundColor3 = self.Theme.Sidebar
+    self.ContentArea.BackgroundTransparency = self.Config.Transparency
     self.ContentArea.Position = UDim2.new(0, contentX, 0, headerHeight + self:S(8))
     self.ContentArea.Size = UDim2.new(1, -(contentX + self:S(9)), 1, -(headerHeight + self:S(16)))
     self.ContentArea.ZIndex = 11
     self.ContentArea.ClipsDescendants = true
     self.ContentArea.Parent = self.MainFrame
+    self:CreateCorner(self.ContentArea, UDim.new(0, 8))
+    self:CreateStroke(self.ContentArea, self.Theme.Border, 1, 0.35)
 
     if self.SideMode then
         self:_CreateSideHandle(config)
@@ -2360,12 +2379,12 @@ function GenesisX:CreateTab(config)
     tabBtn.LayoutOrder = self._tabOrderCount
     tabBtn.BackgroundColor3 = self.Theme.Card
     tabBtn.BorderSizePixel = 0
-    tabBtn.Size = UDim2.new(1, 0, 0, self:S(36))
+    tabBtn.Size = UDim2.new(1, 0, 0, self:S(42))
     tabBtn.Text = ""
     tabBtn.AutoButtonColor = false
     tabBtn.ZIndex = 13
     tabBtn.Parent = self._tabParent or self.Sidebar
-    self:CreateCorner(tabBtn, UDim.new(0, 4))
+    self:CreateCorner(tabBtn, UDim.new(0, 8))
     self:CreateStroke(tabBtn, self.Theme.Border, 1, 0.4)
 
     local pip = Instance.new("Frame")
@@ -2410,7 +2429,7 @@ function GenesisX:CreateTab(config)
     nameLbl.Size = UDim2.new(1, -self:S(40), 1, 0)
     nameLbl.Font = self:GetFontSemibold()
     nameLbl.Text = tabId
-    nameLbl.TextColor3 = self.Theme.TextMuted
+    nameLbl.TextColor3 = self.Theme.TextSecondary
     nameLbl.TextSize = self:S(12)
     nameLbl.TextXAlignment = Enum.TextXAlignment.Left
     nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
@@ -2438,19 +2457,19 @@ function GenesisX:CreateTab(config)
 
     local bgCard = Instance.new("Frame")
     bgCard.Name = "BgCard"
-    bgCard.BackgroundColor3 = self.Theme.Background
+    bgCard.BackgroundColor3 = self.Theme.Sidebar
     bgCard.BackgroundTransparency = self.Config.Transparency
     bgCard.BorderSizePixel = 0
     bgCard.Size = UDim2.fromScale(1, 1)
     bgCard.ZIndex = 10
     bgCard.Parent = page
-    self:CreateCorner(bgCard, UDim.new(0, 6))
-    self:_PremiumTexture(bgCard, 0.85, 6)
+    self:CreateCorner(bgCard, UDim.new(0, 8))
+    self:CreateStroke(bgCard, self.Theme.Border, 1, 0.35)
 
     local divider = Instance.new("Frame")
     divider.Name = "Divider"
     divider.BackgroundColor3 = self.Theme.Border
-    divider.BackgroundTransparency = 0.3
+    divider.BackgroundTransparency = 0.55
     divider.BorderSizePixel = 0
     divider.Position = UDim2.new(0.5, -1, 0, self:S(8))
     divider.Size = UDim2.new(0, 1, 1, -self:S(16))
@@ -2488,8 +2507,8 @@ function GenesisX:CreateTab(config)
         return scroll
     end
 
-    local left = createSide(UDim2.new(0, 0, 0, 0), UDim2.new(0.49, 0, 1, 0), "Left")
-    local right = createSide(UDim2.new(0.51, 0, 0, 0), UDim2.new(0.49, 0, 1, 0), "Right")
+    local left = createSide(UDim2.new(0, self:S(8), 0, self:S(8)), UDim2.new(0.495, -self:S(12), 1, -self:S(16)), "Left")
+    local right = createSide(UDim2.new(0.505, self:S(4), 0, self:S(8)), UDim2.new(0.495, -self:S(12), 1, -self:S(16)), "Right")
 
     -- On narrow screens the same Left/Right instances become selectable columns,
     -- rather than squeezing two columns into an unusably small width.
@@ -2550,9 +2569,9 @@ function GenesisX:CreateTab(config)
         else
             left.Visible = true
             right.Visible = true
-            left.Position = UDim2.new(0, 0, 0, 0)
-            right.Position = UDim2.new(0.51, 0, 0, 0)
-            left.Size = UDim2.new(0.49, 0, 1, 0)
+            left.Position = UDim2.new(0, self:S(8), 0, self:S(8))
+            right.Position = UDim2.new(0.505, self:S(4), 0, self:S(8))
+            left.Size = UDim2.new(0.495, -self:S(12), 1, -self:S(16))
             right.Size = left.Size
         end
     end
@@ -2902,7 +2921,7 @@ function GenesisX:CreateToggle(parent, config)
     local description = config.Description or config.Subtitle or ""
     local default = config.Default or false
     local callback = config.Callback or function() end
-    local height = self:S(46)
+    local height = description ~= "" and self:S(56) or self:S(44)
 
     local frame = Instance.new("Frame")
     frame.Name = "Toggle_" .. text
@@ -2911,211 +2930,172 @@ function GenesisX:CreateToggle(parent, config)
     frame.ZIndex = 12
     frame.Parent = parent
     frame.BackgroundTransparency = self.Config.Transparency
-    self:CreateCorner(frame)
-    self:CreateStroke(frame, self.Theme.Border, 1, 0.5)
-
-    local hoverFill = Instance.new("Frame")
-    hoverFill.Name = "HoverFill"
-    hoverFill.BackgroundColor3 = Color3.new(1, 1, 1)
-    hoverFill.BackgroundTransparency = 1
-    hoverFill.BorderSizePixel = 0
-    hoverFill.Size = UDim2.new(1, 0, 1, 0)
-    hoverFill.ZIndex = 0
-    hoverFill.Parent = frame
-    self:CreateCorner(hoverFill)
+    self:CreateCorner(frame, UDim.new(0, 8))
+    local frameStroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, self:S(14), 0, 0)
-    label.Size = UDim2.new(0.6, 0, 1, 0)
-    label.Font = self:GetFontSemibold()
+    label.Position = UDim2.new(0, self:S(14), 0, description ~= "" and self:S(8) or 0)
+    label.Size = UDim2.new(1, -self:S(72), 0, self:S(18))
+    label.Font = self:GetFontBold()
     label.Text = text
     label.TextColor3 = self.Theme.Text
     label.TextSize = self:S(13)
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextTruncate = Enum.TextTruncate.AtEnd
     label.ZIndex = 13
     label.Parent = frame
+
+    local sub
     if description ~= "" then
-        label.Position = UDim2.new(0, self:S(14), 0, self:S(5))
-        label.Size = UDim2.new(1, -self:S(94), 0, self:S(22))
-        local sub = Instance.new("TextLabel")
+        sub = Instance.new("TextLabel")
         sub.Name = "Subtitle"
         sub.BackgroundTransparency = 1
-        sub.Position = UDim2.new(0, self:S(14), 0, self:S(25))
-        sub.Size = UDim2.new(1, -self:S(94), 0, self:S(15))
-        sub.Text = tostring(description)
-        sub.TextSize = self:S(10)
-        sub.TextColor3 = self.Theme.TextMuted
+        sub.Position = UDim2.new(0, self:S(14), 0, self:S(27))
+        sub.Size = UDim2.new(1, -self:S(72), 0, self:S(14))
         sub.Font = self:GetFont()
+        sub.Text = tostring(description)
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
         sub.TextXAlignment = Enum.TextXAlignment.Left
-        sub.TextTruncate = Enum.TextTruncate.AtEnd
         sub.ZIndex = 13
         sub.Parent = frame
     end
 
-    local trackWidth, trackHeight = self:S(46), self:S(24)
+    local trackW, trackH = self:S(40), self:S(20)
     local track = Instance.new("TextButton")
     track.Name = "Track"
     track.AutoButtonColor = false
-    track.BackgroundColor3 = default and self.Theme.ToggleOn or self.Theme.ToggleOff
-    track.Position = UDim2.new(1, -trackWidth - self:S(14), 0.5, -trackHeight/2)
-    track.Size = UDim2.new(0, trackWidth, 0, trackHeight)
+    track.BackgroundColor3 = default and self.Theme.ToggleOn or Color3.fromRGB(42, 42, 42)
+    track.Position = UDim2.new(1, -trackW - self:S(14), 0.5, -trackH/2)
+    track.Size = UDim2.new(0, trackW, 0, trackH)
     track.Text = ""
     track.ZIndex = 14
     track.Parent = frame
     self:CreateCorner(track, UDim.new(1, 0))
-    self:CreateStroke(track, default and self.Theme.Accent or self.Theme.Border, 1, default and 0.2 or 0.5)
-
-    local trackStroke = track:FindFirstChildOfClass("UIStroke")
-    local knobSize = self:S(18)
 
     local knob = Instance.new("Frame")
     knob.Name = "Knob"
-    knob.BackgroundColor3 = Color3.new(1, 1, 1)
-    knob.Position = default and UDim2.new(1, -knobSize - self:S(3), 0.5, -knobSize/2)
-                              or UDim2.new(0, self:S(3), 0.5, -knobSize/2)
-    knob.Size = UDim2.new(0, knobSize, 0, knobSize)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    knob.Size = UDim2.new(0, self:S(14), 0, self:S(14))
+    knob.Position = default and UDim2.new(1, -self:S(17), 0.5, -self:S(7)) or UDim2.new(0, self:S(3), 0.5, -self:S(7))
     knob.ZIndex = 15
     knob.Parent = track
-    self:CreateCorner(knob, UDim.new(1, 0))
-    self:CreateStroke(knob, Color3.fromRGB(200, 200, 200), 1, 0.3)
+    self:CreateCorner(knob, UDim.new(1,0))
+
+    local hit = Instance.new("TextButton")
+    hit.BackgroundTransparency = 1
+    hit.Size = UDim2.new(1,0,1,0)
+    hit.Text = ""
+    hit.AutoButtonColor = false
+    hit.ZIndex = 16
+    hit.Parent = frame
 
     local state = default
-
-    local function update(newState, animated)
-        local time = animated == false and 0 or 0.2
-        state = newState
-        if state then
-            self:Tween(track, {BackgroundColor3 = self.Theme.ToggleOn}, time)
-            if trackStroke then self:Tween(trackStroke, {Color = self.Theme.Accent, Transparency = 0.2}, time) end
-            self:Tween(knob, {Position = UDim2.new(1, -knobSize - self:S(3), 0.5, -knobSize/2)}, time, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        else
-            self:Tween(track, {BackgroundColor3 = self.Theme.ToggleOff}, time)
-            if trackStroke then self:Tween(trackStroke, {Color = self.Theme.Border, Transparency = 0.5}, time) end
-            self:Tween(knob, {Position = UDim2.new(0, self:S(3), 0.5, -knobSize/2)}, time, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        end
+    local function apply(v, fire)
+        state = v and true or false
+        self:Tween(track, {BackgroundColor3 = state and self.Theme.ToggleOn or Color3.fromRGB(42,42,42)}, 0.15)
+        self:Tween(knob, {Position = state and UDim2.new(1, -self:S(17), 0.5, -self:S(7)) or UDim2.new(0, self:S(3), 0.5, -self:S(7))}, 0.15)
+        if fire then callback(state) end
     end
 
-    track.MouseButton1Click:Connect(function()
-        state = not state
-        callback(state)
-        update(state)
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.BorderBright, Transparency = 0.15}, 0.12) end
     end)
-    frame.MouseEnter:Connect(function() self:Tween(hoverFill, {BackgroundTransparency = 0.97}, 0.15) end)
-    frame.MouseLeave:Connect(function() self:Tween(hoverFill, {BackgroundTransparency = 1}, 0.15) end)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
+    end)
+    hit.MouseButton1Click:Connect(function() apply(not state, true) end)
 
     return {
         Frame = frame,
         GetState = function() return state end,
-        SetState = function(s) state = s; callback(state); update(state) end,
+        SetState = function(s) apply(s, true) end,
     }
 end
 
 -- --- CREATE BUTTON ------------------------------------------------------------
 function GenesisX:CreateButton(parent, config)
     config = config or {}
-    local text     = config.Text     or "Button"
-    local style    = config.Style    or "default"
+    local text = config.Text or "Button"
+    local description = config.Description or config.Subtitle or ""
     local callback = config.Callback or function() end
-    local height   = self:S(40)
+    local height = description ~= "" and self:S(56) or self:S(44)
 
     local frame = Instance.new("Frame")
     frame.Name = "Button_" .. text
-    frame.BackgroundTransparency = 1
+    frame.BackgroundColor3 = self.Theme.Card
     frame.Size = UDim2.new(1, 0, 0, height)
     frame.ZIndex = 12
     frame.Parent = parent
+    frame.BackgroundTransparency = self.Config.Transparency
+    self:CreateCorner(frame, UDim.new(0, 8))
+    local frameStroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
-    -- padding pra nao cortar nas laterais
-    local pad = Instance.new("UIPadding")
-    pad.PaddingLeft  = UDim.new(0, self:S(4))
-    pad.PaddingRight = UDim.new(0, self:S(4))
-    pad.Parent = frame
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, self:S(14), 0, description ~= "" and self:S(8) or 0)
+    label.Size = UDim2.new(1, -self:S(48), 0, self:S(18))
+    label.Font = self:GetFontBold()
+    label.Text = text
+    label.TextColor3 = self.Theme.Text
+    label.TextSize = self:S(13)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 13
+    label.Parent = frame
 
-    local bgColor, bgHover, strokeColor, textColor
-    if style == "accent" then
-        bgColor     = self.Theme.AccentDark
-        bgHover     = self.Theme.Accent
-        strokeColor = self.Theme.Accent
-        textColor   = Color3.new(1, 1, 1)
-    elseif style == "warning" then
-        bgColor     = Color3.fromRGB(40, 25, 5)
-        bgHover     = Color3.fromRGB(55, 35, 8)
-        strokeColor = Color3.fromRGB(200, 130, 30)
-        textColor   = Color3.new(1, 1, 1)
-    elseif style == "info" then
-        bgColor     = Color3.fromRGB(10, 20, 45)
-        bgHover     = Color3.fromRGB(15, 28, 60)
-        strokeColor = Color3.fromRGB(80, 140, 230)
-        textColor   = Color3.new(1, 1, 1)
-    elseif style == "danger" then
-        bgColor     = Color3.fromRGB(45, 10, 10)
-        bgHover     = Color3.fromRGB(60, 15, 15)
-        strokeColor = Color3.fromRGB(210, 60, 60)
-        textColor   = Color3.new(1, 1, 1)
-    elseif style == "success" then
-        bgColor     = Color3.fromRGB(10, 40, 20)
-        bgHover     = Color3.fromRGB(15, 55, 28)
-        strokeColor = Color3.fromRGB(60, 200, 100)
-        textColor   = Color3.new(1, 1, 1)
-    else
-        -- Default: theme-aware (adapts to Dark/Light automatically)
-        bgColor     = self.Theme.Card
-        bgHover     = self.Theme.CardHover
-        strokeColor = self.Theme.Accent
-        textColor   = self.Theme.Text
+    local sub
+    if description ~= "" then
+        sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, self:S(14), 0, self:S(27))
+        sub.Size = UDim2.new(1, -self:S(48), 0, self:S(14))
+        sub.Font = self:GetFont()
+        sub.Text = tostring(description)
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.ZIndex = 13
+        sub.Parent = frame
     end
 
-    local btn = Instance.new("TextButton")
-    btn.Name = "Button"
-    btn.AutoButtonColor = false
-    btn.BorderSizePixel = 0
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.Font = self:GetFontBold()
-    btn.Text = text
-    btn.TextSize = self:S(13)
-    btn.TextColor3 = textColor
-    btn.BackgroundColor3 = bgColor
-    btn.ZIndex = 13
-    btn.Parent = frame
-    self:CreateCorner(btn)
-    self:CreateStroke(btn, strokeColor, 1.2, 0.2)
+    local arrow = Instance.new("ImageLabel")
+    arrow.BackgroundTransparency = 1
+    arrow.Size = UDim2.fromOffset(self:S(14), self:S(14))
+    arrow.AnchorPoint = Vector2.new(1,0.5)
+    arrow.Position = UDim2.new(1, -self:S(14), 0.5, 0)
+    arrow.Image = self:FormatAssetId("lucide-chevron-right") or "rbxassetid://10709791437"
+    arrow.ImageColor3 = self.Theme.Accent
+    arrow.ZIndex = 14
+    arrow.Parent = frame
 
-    local rippleHolder = Instance.new("Frame")
-    rippleHolder.Name = "RippleHolder"
-    rippleHolder.BackgroundTransparency = 1
-    rippleHolder.BorderSizePixel = 0
-    rippleHolder.Size = UDim2.new(1, 0, 1, 0)
-    rippleHolder.ClipsDescendants = true
-    rippleHolder.ZIndex = btn.ZIndex + 1
-    rippleHolder.Parent = btn
-    self:CreateCorner(rippleHolder)
+    local hit = Instance.new("TextButton")
+    hit.BackgroundTransparency = 1
+    hit.Size = UDim2.new(1,0,1,0)
+    hit.Text = ""
+    hit.AutoButtonColor = false
+    hit.ZIndex = 15
+    hit.Parent = frame
 
-    btn.MouseEnter:Connect(function()
-        local targetHover = bgHover
-        if style == "default" then
-            targetHover = self.Theme.CardHover
-        end
-        self:Tween(btn, {BackgroundColor3 = targetHover}, 0.15)
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        self:Tween(arrow, {ImageColor3 = self.Theme.AccentSecondary}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Accent, Transparency = 0.14}, 0.12) end
     end)
-    btn.MouseLeave:Connect(function()
-        local targetBg = bgColor
-        if style == "default" then
-            targetBg = self.Theme.Card
-        end
-        self:Tween(btn, {BackgroundColor3 = targetBg}, 0.15)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        self:Tween(arrow, {ImageColor3 = self.Theme.Accent}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
     end)
-    btn.MouseButton1Click:Connect(function()
-        callback()
-    end)
+    hit.MouseButton1Click:Connect(function() callback() end)
 
     return {
         Frame  = frame,
-        Button = btn,
-        SetText     = function(t)  btn.Text = t end,
-        SetCallback = function(cb) callback  = cb end,
+        SetText = function(t) label.Text = t end,
+        SetCallback = function(cb) callback = cb end,
+        Button = hit,
     }
 end
 
@@ -3281,187 +3261,174 @@ end
 -- --- CREATE SLIDER ------------------------------------------------------------
 function GenesisX:CreateSlider(parent, config)
     config = config or {}
-    local text     = config.Text      or "Slider"
-    local min      = config.Min       or 0
-    local max      = config.Max       or 100
-    local default  = config.Default   or min
-    local increment = config.Increment or nil
-    local callback = config.Callback  or function() end
-    local height   = self:S(62)
+    local text = config.Text or "Slider"
+    local description = config.Description or config.Subtitle or ""
+    local min = config.Min or 0
+    local max = config.Max or 100
+    local default = config.Default or min
+    local increment = tonumber(config.Increment or config.Increase or config.Step)
+    local callback = config.Callback or function() end
 
     local frame = Instance.new("Frame")
     frame.Name = "Slider_" .. text
     frame.BackgroundColor3 = self.Theme.Card
-    frame.Size = UDim2.new(1, 0, 0, height)
+    frame.Size = UDim2.new(1, 0, 0, description ~= "" and self:S(76) or self:S(62))
     frame.ZIndex = 12
     frame.Parent = parent
     frame.BackgroundTransparency = self.Config.Transparency
-    self:CreateCorner(frame)
-    self:CreateStroke(frame, self.Theme.Border, 1, 0.4)
+    self:CreateCorner(frame, UDim.new(0, 8))
+    local frameStroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
     local label = Instance.new("TextLabel")
-    label.Name = "Label"
     label.BackgroundTransparency = 1
     label.Position = UDim2.new(0, self:S(14), 0, self:S(10))
-    label.Size = UDim2.new(0.6, 0, 0, self:S(18))
-    label.Font = self:GetFontSemibold()
+    label.Size = UDim2.new(1, -self:S(82), 0, self:S(18))
+    label.Font = self:GetFontBold()
     label.Text = text
     label.TextColor3 = self.Theme.Text
-    label.TextSize = self:S(12)
+    label.TextSize = self:S(13)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.ZIndex = 13
     label.Parent = frame
 
-    -- -- Valor clicavel (vira TextBox ao clicar) ----------------------------
+    local sub
+    local yAfterText = self:S(28)
+    if description ~= "" then
+        sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, self:S(14), 0, self:S(28))
+        sub.Size = UDim2.new(1, -self:S(28), 0, self:S(14))
+        sub.Font = self:GetFont()
+        sub.Text = tostring(description)
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.ZIndex = 13
+        sub.Parent = frame
+        yAfterText = self:S(44)
+    end
+
     local valueBg = Instance.new("Frame")
-    valueBg.Name = "ValueBg"
     valueBg.BackgroundColor3 = self.Theme.Accent
-    valueBg.Position = UDim2.new(1, -self:S(42), 0, self:S(8))
-    valueBg.Size = UDim2.new(0, self:S(36), 0, self:S(22))
+    valueBg.AnchorPoint = Vector2.new(1,0)
+    valueBg.Position = UDim2.new(1, -self:S(12), 0, self:S(9))
+    valueBg.Size = UDim2.new(0, self:S(46), 0, self:S(24))
     valueBg.ZIndex = 14
     valueBg.Parent = frame
-    self:CreateCorner(valueBg, UDim.new(0, 4))
+    self:CreateCorner(valueBg, UDim.new(0, 6))
 
-    -- Label de display (visivel normalmente)
     local valueLabel = Instance.new("TextButton")
-    valueLabel.Name = "ValueLabel"
     valueLabel.BackgroundTransparency = 1
-    valueLabel.Size = UDim2.new(1, 0, 1, 0)
-    valueLabel.Font = self:GetFontBold()
+    valueLabel.Size = UDim2.new(1,0,1,0)
     valueLabel.Text = tostring(default)
-    valueLabel.TextColor3 = Color3.new(1, 1, 1)
+    valueLabel.Font = self:GetFontBold()
     valueLabel.TextSize = self:S(11)
+    valueLabel.TextColor3 = Color3.new(1,1,1)
     valueLabel.AutoButtonColor = false
-    valueLabel.ZIndex = 16
+    valueLabel.ZIndex = 15
     valueLabel.Parent = valueBg
 
-    -- TextBox de input (invisivel por padrao)
     local valueInput = Instance.new("TextBox")
-    valueInput.Name = "ValueInput"
     valueInput.BackgroundTransparency = 1
-    valueInput.Size = UDim2.new(1, 0, 1, 0)
-    valueInput.Font = self:GetFontBold()
+    valueInput.Size = UDim2.new(1,0,1,0)
     valueInput.Text = ""
-    valueInput.PlaceholderText = ""
-    valueInput.TextColor3 = Color3.new(1, 1, 1)
-    valueInput.TextSize = self:S(11)
-    valueInput.ClearTextOnFocus = true
     valueInput.Visible = false
-    valueInput.ZIndex = 17
+    valueInput.ClearTextOnFocus = true
+    valueInput.Font = self:GetFontBold()
+    valueInput.TextSize = self:S(11)
+    valueInput.TextColor3 = Color3.new(1,1,1)
+    valueInput.ZIndex = 16
     valueInput.Parent = valueBg
 
-    -- -- Track --------------------------------------------------------------
-    local trackHeight = self:S(6)
-    local trackBg = Instance.new("Frame")
-    trackBg.Name = "TrackBg"
-    trackBg.BackgroundColor3 = self.Theme.Input
-    trackBg.Position = UDim2.new(0, self:S(14), 1, -self:S(20))
-    trackBg.Size = UDim2.new(1, -self:S(28), 0, trackHeight)
-    trackBg.ZIndex = 13
-    trackBg.Parent = frame
-    self:CreateCorner(trackBg, UDim.new(1, 0))
+    local barBg = Instance.new("Frame")
+    barBg.BackgroundColor3 = Color3.fromRGB(26,26,30)
+    barBg.Position = UDim2.new(0, self:S(14), 0, yAfterText)
+    barBg.Size = UDim2.new(1, -self:S(28), 0, self:S(6))
+    barBg.ZIndex = 13
+    barBg.Parent = frame
+    self:CreateCorner(barBg, UDim.new(1,0))
 
     local fill = Instance.new("Frame")
-    fill.Name = "Fill"
     fill.BackgroundColor3 = self.Theme.Accent
-    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.Size = UDim2.new(0,0,1,0)
     fill.ZIndex = 14
-    fill.Parent = trackBg
-    self:CreateCorner(fill, UDim.new(1, 0))
+    fill.Parent = barBg
+    self:CreateCorner(fill, UDim.new(1,0))
 
-    local knobSize = self:S(16)
     local knob = Instance.new("Frame")
-    knob.Name = "Knob"
-    knob.BackgroundColor3 = Color3.new(1, 1, 1)
-    knob.Position = UDim2.new((default - min) / (max - min), -knobSize/2, 0.5, -knobSize/2)
-    knob.Size = UDim2.new(0, knobSize, 0, knobSize)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    knob.Size = UDim2.new(0, self:S(16), 0, self:S(16))
+    knob.Position = UDim2.new(0,0,0.5,-self:S(8))
     knob.ZIndex = 15
-    knob.Parent = trackBg
-    self:CreateCorner(knob, UDim.new(1, 0))
-    self:CreateStroke(knob, self.Theme.Accent, 2, 0)
+    knob.Parent = barBg
+    self:CreateCorner(knob, UDim.new(1,0))
+    self:CreateStroke(knob, self.Theme.Accent, 1.3, 0)
 
-    local dragging = false
     local currentValue = default
-
-    local function snapValue(v)
-        if increment then
-            v = math.floor((v - min) / increment + 0.5) * increment + min
+    local dragging = false
+    local function snap(v)
+        v = math.clamp(v, min, max)
+        if increment and increment > 0 then
+            v = math.floor(((v - min) / increment) + 0.5) * increment + min
         end
-        return math.floor(math.clamp(v, min, max) * 100) / 100
+        return math.floor(v * 100) / 100
     end
-
-    local function applyValue(v)
-        currentValue = snapValue(v)
-        local percent = (currentValue - min) / (max - min)
+    local function apply(v, fire)
+        currentValue = snap(v)
+        local percent = (currentValue - min) / math.max(max - min, 1e-6)
         fill.Size = UDim2.new(percent, 0, 1, 0)
-        knob.Position = UDim2.new(percent, -knobSize/2, 0.5, -knobSize/2)
+        knob.Position = UDim2.new(percent, -self:S(8), 0.5, -self:S(8))
         valueLabel.Text = tostring(currentValue)
-        callback(currentValue)
+        if fire then callback(currentValue) end
+    end
+    local function fromInput(input)
+        local percent = math.clamp((input.Position.X - barBg.AbsolutePosition.X) / math.max(barBg.AbsoluteSize.X,1), 0, 1)
+        apply(min + (max - min) * percent, true)
     end
 
-    local function updateFromDrag(input)
-        local percent = math.clamp(
-            (input.Position.X - trackBg.AbsolutePosition.X) / trackBg.AbsoluteSize.X, 0, 1
-        )
-        applyValue(min + (max - min) * percent)
-    end
-
-    trackBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
+    barBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            updateFromDrag(input)
-        end
-    end)
-    knob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+            fromInput(input)
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
-           input.UserInputType == Enum.UserInputType.Touch) then
-            updateFromDrag(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            fromInput(input)
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
     end)
 
-    -- -- Clique no valor -> vira input ---------------------------------------
     valueLabel.MouseButton1Click:Connect(function()
         valueLabel.Visible = false
         valueInput.Visible = true
         valueInput.Text = tostring(currentValue)
         valueInput:CaptureFocus()
     end)
-
-    valueInput.FocusLost:Connect(function(enterPressed)
-        local typed = tonumber(valueInput.Text)
-        if typed then
-            applyValue(typed)
-        end
+    valueInput.FocusLost:Connect(function()
+        local n = tonumber(valueInput.Text)
+        if n then apply(n, true) end
         valueInput.Visible = false
         valueLabel.Visible = true
         valueLabel.Text = tostring(currentValue)
     end)
 
-    -- highlight ao hover no valor
-    valueBg.MouseEnter:Connect(function()
-        self:Tween(valueBg, {BackgroundColor3 = self.Theme.AccentHover}, 0.15)
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.BorderBright, Transparency = 0.15}, 0.12) end
     end)
-    valueBg.MouseLeave:Connect(function()
-        self:Tween(valueBg, {BackgroundColor3 = self.Theme.Accent}, 0.15)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
     end)
 
+    apply(default, false)
     return {
-        Frame    = frame,
+        Frame = frame,
         GetValue = function() return currentValue end,
-        SetValue = function(v) applyValue(v) end,
+        SetValue = function(v) apply(v, true) end,
     }
 end
 
@@ -3483,11 +3450,12 @@ end
 -- --- CREATE DROPDOWN ----------------------------------------------------------
 function GenesisX:CreateDropdown(parent, config)
     config = config or {}
-    local labelText = config.Label or "Dropdown"
-    local options = config.Options or {}
+    local labelText = config.Label or config.Text or "Dropdown"
+    local description = config.Description or config.Subtitle or ""
+    local options = config.Options or config.Values or {}
     local default = config.Default
     local callback = config.Callback or function() end
-    local height = self:S(62)
+    local height = description ~= "" and self:S(72) or self:S(58)
 
     local frame = Instance.new("Frame")
     frame.Name = "Dropdown_" .. labelText
@@ -3497,251 +3465,260 @@ function GenesisX:CreateDropdown(parent, config)
     frame.ZIndex = 12
     frame.Parent = parent
     frame.BackgroundTransparency = self.Config.Transparency
-    self:CreateCorner(frame)
-    self:CreateStroke(frame, self.Theme.Border, 1, 0.4)
+    self:CreateCorner(frame, UDim.new(0, 8))
+    local frameStroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
     local label = Instance.new("TextLabel")
-    label.Name = "Label"
     label.BackgroundTransparency = 1
     label.Position = UDim2.new(0, self:S(14), 0, self:S(10))
-    label.Size = UDim2.new(1, -self:S(28), 0, self:S(14))
-    label.Font = self:GetFontSemibold()
+    label.Size = UDim2.new(1, -self:S(28), 0, self:S(16))
+    label.Font = self:GetFontBold()
     label.Text = labelText
-    label.TextColor3 = self.Theme.TextMuted
-    label.TextSize = self:S(10)
+    label.TextColor3 = self.Theme.Text
+    label.TextSize = self:S(13)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.ZIndex = 13
     label.Parent = frame
 
+    if description ~= "" then
+        local sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, self:S(14), 0, self:S(26))
+        sub.Size = UDim2.new(1, -self:S(28), 0, self:S(14))
+        sub.Font = self:GetFont()
+        sub.Text = tostring(description)
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.ZIndex = 13
+        sub.Parent = frame
+    end
+
+    local boxY = description ~= "" and self:S(44) or self:S(22)
     local dropBtn = Instance.new("TextButton")
-    dropBtn.Name = "DropBtn"
     dropBtn.BackgroundColor3 = self.Theme.Input
     dropBtn.AutoButtonColor = false
-    dropBtn.Position = UDim2.new(0, self:S(12), 0, self:S(26))
+    dropBtn.Position = UDim2.new(0, self:S(12), 0, boxY)
     dropBtn.Size = UDim2.new(1, -self:S(24), 0, self:S(28))
     dropBtn.Font = self:GetFontSemibold()
-    dropBtn.Text = "  " .. (default or "Selecionar...")
-    dropBtn.TextColor3 = default and self.Theme.Text or self.Theme.TextMuted
-    dropBtn.TextSize = self:S(12)
-    dropBtn.TextXAlignment = Enum.TextXAlignment.Left
+    dropBtn.Text = ""
     dropBtn.ZIndex = 14
     dropBtn.Parent = frame
     self:CreateCorner(dropBtn, UDim.new(0, 6))
-    local dropStroke = self:CreateStroke(dropBtn, self.Theme.Border, 1, 0.4)
+    local dropStroke = self:CreateStroke(dropBtn, self.Theme.Border, 1, 0.3)
 
-    -- SETA LUCIDE (chevron-down)
+    local valueText = Instance.new("TextLabel")
+    valueText.BackgroundTransparency = 1
+    valueText.Position = UDim2.new(0, self:S(10), 0, 0)
+    valueText.Size = UDim2.new(1, -self:S(30), 1, 0)
+    valueText.Font = self:GetFontSemibold()
+    valueText.TextColor3 = self.Theme.TextMuted
+    valueText.TextSize = self:S(12)
+    valueText.TextXAlignment = Enum.TextXAlignment.Left
+    valueText.TextTruncate = Enum.TextTruncate.AtEnd
+    valueText.ZIndex = 15
+    valueText.Parent = dropBtn
+
     local arrow = Instance.new("ImageLabel")
-    arrow.Name = "Arrow"
     arrow.BackgroundTransparency = 1
-    arrow.Position = UDim2.new(1, -self:S(28), 0, 0)
-    arrow.Size = UDim2.new(0, self:S(26), 1, 0)
-    arrow.Image = self:FormatAssetId("lucide-chevron-down") or ""
+    arrow.Size = UDim2.fromOffset(self:S(12), self:S(12))
+    arrow.AnchorPoint = Vector2.new(1,0.5)
+    arrow.Position = UDim2.new(1, -self:S(10), 0.5, 0)
+    arrow.Image = self:FormatAssetId("lucide-chevron-down") or "rbxassetid://10709790948"
     arrow.ImageColor3 = self.Theme.Accent
     arrow.ZIndex = 15
     arrow.Parent = dropBtn
 
     local selected = default
     local isOpen = false
-
-    local overlay = Instance.new("Frame")
+    local overlay = Instance.new("TextButton")
     overlay.Name = "DropdownOverlay"
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.Size = UDim2.fromScale(1,1)
+    overlay.BackgroundColor3 = Color3.new(0,0,0)
     overlay.BackgroundTransparency = 1
-    overlay.BorderSizePixel = 0
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.ZIndex = 500
+    overlay.Text = ""
+    overlay.AutoButtonColor = false
     overlay.Visible = false
+    overlay.ZIndex = 600
     overlay.Parent = self.ScreenGui
 
     local listContainer = Instance.new("Frame")
-    listContainer.Name = "ListContainer"
-    listContainer.BackgroundColor3 = self.Theme.Card
+    listContainer.BackgroundColor3 = self.Theme.Sidebar
     listContainer.BorderSizePixel = 0
-    listContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-    listContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-    listContainer.Size = UDim2.new(0, 0, 0, 0)
-    listContainer.ZIndex = 501
+    listContainer.AnchorPoint = Vector2.new(0.5,0.5)
+    listContainer.Position = UDim2.new(0.5,0,0.5,0)
+    listContainer.Size = UDim2.new(0, self:S(320), 0, 0)
     listContainer.Visible = false
+    listContainer.ZIndex = 601
     listContainer.Parent = overlay
     self:CreateCorner(listContainer, UDim.new(0, 10))
-    self:CreateStroke(listContainer, self.Theme.Accent, 1.5, 0.3)
+    self:CreateStroke(listContainer, self.Theme.BorderBright, 1, 0.12)
 
     local listTitle = Instance.new("TextLabel")
-    listTitle.Name = "Title"
     listTitle.BackgroundTransparency = 1
     listTitle.Position = UDim2.new(0, self:S(16), 0, self:S(12))
-    listTitle.Size = UDim2.new(1, -self:S(32), 0, self:S(22))
+    listTitle.Size = UDim2.new(1, -self:S(54), 0, self:S(18))
     listTitle.Font = self:GetFontBold()
     listTitle.Text = labelText
     listTitle.TextColor3 = self.Theme.Text
     listTitle.TextSize = self:S(14)
     listTitle.TextXAlignment = Enum.TextXAlignment.Left
-    listTitle.ZIndex = 502
+    listTitle.ZIndex = 602
     listTitle.Parent = listContainer
 
+    local closeIcon = Instance.new("ImageButton")
+    closeIcon.BackgroundTransparency = 1
+    closeIcon.AnchorPoint = Vector2.new(1, 0.5)
+    closeIcon.Position = UDim2.new(1, -self:S(16), 0, self:S(21))
+    closeIcon.Size = UDim2.new(0, self:S(14), 0, self:S(14))
+    closeIcon.Image = self:FormatAssetId("lucide-x") or "rbxassetid://10747384394"
+    closeIcon.ImageColor3 = self.Theme.Accent
+    closeIcon.AutoButtonColor = false
+    closeIcon.ZIndex = 602
+    closeIcon.Parent = listContainer
+
+    local divider = Instance.new("Frame")
+    divider.BackgroundColor3 = self.Theme.Border
+    divider.BorderSizePixel = 0
+    divider.Position = UDim2.new(0,0,0,self:S(44))
+    divider.Size = UDim2.new(1,0,0,1)
+    divider.ZIndex = 602
+    divider.Parent = listContainer
+
     local dropList = Instance.new("ScrollingFrame")
-    dropList.Name = "DropList"
     dropList.BackgroundTransparency = 1
     dropList.BorderSizePixel = 0
-    dropList.Position = UDim2.new(0, self:S(12), 0, self:S(40))
-    dropList.Size = UDim2.new(1, -self:S(24), 1, -self:S(52))
-    dropList.ScrollBarThickness = 4
+    dropList.Position = UDim2.new(0, self:S(8), 0, self:S(52))
+    dropList.Size = UDim2.new(1, -self:S(16), 1, -self:S(60))
+    dropList.ScrollBarThickness = 3
     dropList.ScrollBarImageColor3 = self.Theme.Accent
-    dropList.ScrollBarImageTransparency = 0.4
-    dropList.ZIndex = 502
+    dropList.CanvasSize = UDim2.new(0,0,0,0)
+    dropList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dropList.ZIndex = 602
     dropList.Parent = listContainer
 
     local listLayout = Instance.new("UIListLayout")
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, self:S(4))
     listLayout.Parent = dropList
+    local listPad = Instance.new("UIPadding")
+    listPad.PaddingTop = UDim.new(0,self:S(2))
+    listPad.PaddingBottom = UDim.new(0,self:S(6))
+    listPad.PaddingLeft = UDim.new(0,self:S(2))
+    listPad.PaddingRight = UDim.new(0,self:S(2))
+    listPad.Parent = dropList
 
-    local listPadding = Instance.new("UIPadding")
-    listPadding.PaddingTop    = UDim.new(0, self:S(4))
-    listPadding.PaddingBottom = UDim.new(0, self:S(4))
-    listPadding.PaddingLeft   = UDim.new(0, self:S(4))
-    listPadding.PaddingRight  = UDim.new(0, self:S(4))
-    listPadding.Parent = dropList
+    local function updateDisplay()
+        valueText.Text = selected and tostring(selected) or "Selecionar..."
+        valueText.TextColor3 = selected and self.Theme.Text or self.Theme.TextMuted
+    end
 
     local function closeDropdown()
         if not isOpen then return end
         isOpen = false
-        self:Tween(overlay, {BackgroundTransparency = 1}, 0.2)
-        self:Tween(listContainer, {Size = UDim2.new(0, self:S(320), 0, 0)}, 0.2)
-        self:Tween(arrow, {Rotation = 0}, 0.2)
-        if dropStroke then
-            self:Tween(dropStroke, {Color = self.Theme.Border, Transparency = 0.4}, 0.2)
-        end
-        task.wait(0.2)
-        overlay.Visible = false
-        listContainer.Visible = false
+        self:Tween(overlay, {BackgroundTransparency = 1}, 0.16)
+        self:Tween(listContainer, {Size = UDim2.new(0, self:S(320), 0, 0)}, 0.18)
+        self:Tween(arrow, {Rotation = 0}, 0.16)
+        if dropStroke then self:Tween(dropStroke, {Color = self.Theme.Border, Transparency = 0.3}, 0.16) end
+        task.delay(0.18, function() overlay.Visible = false; listContainer.Visible = false end)
     end
 
     local function populate()
         for _, child in ipairs(dropList:GetChildren()) do
             if child:IsA("Frame") then child:Destroy() end
         end
-
         for _, option in ipairs(options) do
-            local isSelected = option == selected
-
+            local active = option == selected
             local row = Instance.new("Frame")
-            row.BackgroundColor3 = isSelected and self.Theme.AccentDark or self.Theme.Input
-            row.Size = UDim2.new(1, 0, 0, self:S(36))
-            row.ZIndex = 503
+            row.BackgroundColor3 = active and self.Theme.AccentDark or self.Theme.Card
+            row.Size = UDim2.new(1, 0, 0, self:S(34))
+            row.ZIndex = 603
             row.Parent = dropList
             self:CreateCorner(row, UDim.new(0, 6))
-
-            if isSelected then
-                self:CreateStroke(row, self.Theme.Accent, 1, 0.2)
-                -- CHECKMARK LUCIDE (check)
-                local check = Instance.new("ImageLabel")
-                check.Name = "Check"
-                check.BackgroundTransparency = 1
-                check.Position = UDim2.new(0, self:S(10), 0.5, -self:S(8))
-                check.Size = UDim2.new(0, self:S(16), 0, self:S(16))
-                check.Image = self:FormatAssetId("lucide-check") or ""
-                check.ImageColor3 = Color3.new(1, 1, 1)
-                check.ZIndex = 504
-                check.Parent = row
-            end
+            self:CreateStroke(row, active and self.Theme.Accent or self.Theme.Border, 1, active and 0.12 or 0.28)
 
             local rowBtn = Instance.new("TextButton")
             rowBtn.BackgroundTransparency = 1
-            rowBtn.Size = UDim2.new(1, 0, 1, 0)
-            rowBtn.Font = self:GetFontSemibold()
-            rowBtn.Text = (isSelected and "    " or "  ") .. option
-            rowBtn.TextColor3 = isSelected and Color3.new(1, 1, 1) or self.Theme.TextSecondary
-            rowBtn.TextSize = self:S(12)
-            rowBtn.TextXAlignment = Enum.TextXAlignment.Left
-            rowBtn.ZIndex = 504
+            rowBtn.Size = UDim2.new(1,0,1,0)
+            rowBtn.Text = ""
+            rowBtn.AutoButtonColor = false
+            rowBtn.ZIndex = 604
             rowBtn.Parent = row
 
-            local rowPad = Instance.new("UIPadding")
-            rowPad.PaddingLeft = UDim.new(0, isSelected and self:S(32) or self:S(12))
-            rowPad.Parent = rowBtn
+            local rowText = Instance.new("TextLabel")
+            rowText.BackgroundTransparency = 1
+            rowText.Position = UDim2.new(0, self:S(12), 0, 0)
+            rowText.Size = UDim2.new(1, -self:S(24), 1, 0)
+            rowText.Font = self:GetFontSemibold()
+            rowText.Text = tostring(option)
+            rowText.TextColor3 = active and self.Theme.AccentSecondary or self.Theme.TextSecondary
+            rowText.TextSize = self:S(12)
+            rowText.TextXAlignment = Enum.TextXAlignment.Left
+            rowText.ZIndex = 604
+            rowText.Parent = row
 
-            rowBtn.MouseButton1Click:Connect(function()
-                selected = option
-                dropBtn.Text = "  " .. option
-                dropBtn.TextColor3 = self.Theme.Text
-                callback(option)
-                closeDropdown()
-            end)
             rowBtn.MouseEnter:Connect(function()
-                if not isSelected then
-                    self:Tween(row, {BackgroundColor3 = self.Theme.CardHover}, 0.1)
-                end
+                if not active then self:Tween(row, {BackgroundColor3 = self.Theme.CardHover}, 0.1) end
             end)
             rowBtn.MouseLeave:Connect(function()
-                if not isSelected then
-                    self:Tween(row, {BackgroundColor3 = self.Theme.Input}, 0.1)
-                end
+                if not active then self:Tween(row, {BackgroundColor3 = self.Theme.Card}, 0.1) end
+            end)
+            rowBtn.MouseButton1Click:Connect(function()
+                selected = option
+                updateDisplay()
+                callback(option)
+                closeDropdown()
             end)
         end
     end
 
-    dropBtn.MouseEnter:Connect(function()
-        self:Tween(dropBtn, {BackgroundColor3 = self.Theme.InputHover}, 0.15)
-    end)
-    dropBtn.MouseLeave:Connect(function()
-        self:Tween(dropBtn, {BackgroundColor3 = self.Theme.Input}, 0.15)
-    end)
-
-    dropBtn.MouseButton1Click:Connect(function()
-        if isOpen then closeDropdown(); return end
+    local function openDropdown()
+        if isOpen then return end
+        isOpen = true
         populate()
-        local contentHeight = listLayout.AbsoluteContentSize.Y + self:S(60)
-        local targetHeight = math.min(contentHeight, self:S(360))
-        local targetWidth = self:S(320)
+        local contentHeight = math.min(listLayout.AbsoluteContentSize.Y + self:S(64), self:S(350))
         overlay.Visible = true
         listContainer.Visible = true
         overlay.BackgroundTransparency = 1
-        listContainer.Size = UDim2.new(0, targetWidth, 0, 0)
-        self:Tween(overlay, {BackgroundTransparency = 0.45}, 0.25)
-        self:Tween(listContainer, {
-            Size = UDim2.new(0, targetWidth, 0, targetHeight)
-        }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        self:Tween(arrow, {Rotation = 180}, 0.2)
-        if dropStroke then
-            self:Tween(dropStroke, {Color = self.Theme.Accent, Transparency = 0.2}, 0.2)
-        end
-        dropList.CanvasSize = UDim2.new(0, 0, 0,
-            listLayout.AbsoluteContentSize.Y + self:S(16))
-        isOpen = true
-    end)
+        listContainer.Size = UDim2.new(0, self:S(320), 0, 0)
+        self:Tween(overlay, {BackgroundTransparency = 0.45}, 0.18)
+        self:Tween(listContainer, {Size = UDim2.new(0, self:S(320), 0, contentHeight)}, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        self:Tween(arrow, {Rotation = 180}, 0.16)
+        if dropStroke then self:Tween(dropStroke, {Color = self.Theme.Accent, Transparency = 0.1}, 0.16) end
+    end
 
-    overlay.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            local pos = input.Position
-            local listPos = listContainer.AbsolutePosition
-            local listSize = listContainer.AbsoluteSize
-            local inList = pos.X >= listPos.X and pos.X <= listPos.X + listSize.X
-                       and pos.Y >= listPos.Y and pos.Y <= listPos.Y + listSize.Y
-            if not inList then closeDropdown() end
-        end
+    dropBtn.MouseButton1Click:Connect(function() if isOpen then closeDropdown() else openDropdown() end end)
+    dropBtn.MouseEnter:Connect(function() self:Tween(dropBtn, {BackgroundColor3 = self.Theme.InputHover}, 0.12) end)
+    dropBtn.MouseLeave:Connect(function() self:Tween(dropBtn, {BackgroundColor3 = self.Theme.Input}, 0.12) end)
+    overlay.MouseButton1Click:Connect(closeDropdown)
+    closeIcon.MouseButton1Click:Connect(closeDropdown)
+
+    updateDisplay()
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.BorderBright, Transparency = 0.15}, 0.12) end
+    end)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
     end)
 
     return {
-        Frame    = frame,
+        Frame = frame,
         GetValue = function() return selected end,
-        SetValue = function(v)
-            selected = v
-            dropBtn.Text = "  " .. (v or "Selecionar...")
-            dropBtn.TextColor3 = v and self.Theme.Text or self.Theme.TextMuted
-        end,
-        SetOptions = function(newOptions) options = newOptions end,
+        SetValue = function(v) selected = v; updateDisplay() end,
+        SetOptions = function(newOptions) options = newOptions or {}; if isOpen then populate() end end,
     }
 end
 
 function GenesisX:CreateMultiDropdown(parent, config)
     config = config or {}
-    local labelText = config.Label or "Multi Select"
-    local options = config.Options or {}
-    local default = config.Default or {}
+    local labelText = config.Label or config.Text or "Multi Select"
+    local description = config.Description or config.Subtitle or ""
+    local options = config.Options or config.Values or {}
     local callback = config.Callback or function() end
-    local height = self:S(62)
+    local default = config.Default or {}
+    local height = description ~= "" and self:S(72) or self:S(58)
 
     local frame = Instance.new("Frame")
     frame.Name = "MultiDropdown_" .. labelText
@@ -3751,45 +3728,78 @@ function GenesisX:CreateMultiDropdown(parent, config)
     frame.ZIndex = 12
     frame.Parent = parent
     frame.BackgroundTransparency = self.Config.Transparency
-    self:CreateCorner(frame)
-    self:CreateStroke(frame, self.Theme.Border, 1, 0.4)
+    self:CreateCorner(frame, UDim.new(0, 8))
+    local frameStroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
     local label = Instance.new("TextLabel")
-    label.Name = "Label"
     label.BackgroundTransparency = 1
     label.Position = UDim2.new(0, self:S(14), 0, self:S(10))
-    label.Size = UDim2.new(1, -self:S(28), 0, self:S(14))
-    label.Font = self:GetFontSemibold()
+    label.Size = UDim2.new(1, -self:S(28), 0, self:S(16))
+    label.Font = self:GetFontBold()
     label.Text = labelText
-    label.TextColor3 = self.Theme.TextMuted
-    label.TextSize = self:S(10)
+    label.TextColor3 = self.Theme.Text
+    label.TextSize = self:S(13)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.ZIndex = 13
     label.Parent = frame
 
+    if description ~= "" then
+        local sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, self:S(14), 0, self:S(26))
+        sub.Size = UDim2.new(1, -self:S(28), 0, self:S(14))
+        sub.Font = self:GetFont()
+        sub.Text = tostring(description)
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.ZIndex = 13
+        sub.Parent = frame
+    end
+
+    local boxY = description ~= "" and self:S(44) or self:S(22)
     local dropBtn = Instance.new("TextButton")
-    dropBtn.Name = "DropBtn"
     dropBtn.BackgroundColor3 = self.Theme.Input
     dropBtn.AutoButtonColor = false
-    dropBtn.Position = UDim2.new(0, self:S(12), 0, self:S(26))
+    dropBtn.Position = UDim2.new(0, self:S(12), 0, boxY)
     dropBtn.Size = UDim2.new(1, -self:S(24), 0, self:S(28))
     dropBtn.Font = self:GetFontSemibold()
-    dropBtn.Text = "  Selecionar..."
-    dropBtn.TextColor3 = self.Theme.TextMuted
-    dropBtn.TextSize = self:S(12)
-    dropBtn.TextXAlignment = Enum.TextXAlignment.Left
+    dropBtn.Text = ""
     dropBtn.ZIndex = 14
     dropBtn.Parent = frame
     self:CreateCorner(dropBtn, UDim.new(0, 6))
-    local dropStroke = self:CreateStroke(dropBtn, self.Theme.Border, 1, 0.4)
+    local dropStroke = self:CreateStroke(dropBtn, self.Theme.Border, 1, 0.3)
 
-    -- SETA LUCIDE (chevron-down)
+    local valueText = Instance.new("TextLabel")
+    valueText.BackgroundTransparency = 1
+    valueText.Position = UDim2.new(0, self:S(10), 0, 0)
+    valueText.Size = UDim2.new(1, -self:S(54), 1, 0)
+    valueText.Font = self:GetFontSemibold()
+    valueText.TextColor3 = self.Theme.TextMuted
+    valueText.TextSize = self:S(12)
+    valueText.TextXAlignment = Enum.TextXAlignment.Left
+    valueText.TextTruncate = Enum.TextTruncate.AtEnd
+    valueText.ZIndex = 15
+    valueText.Parent = dropBtn
+
+    local badge = Instance.new("TextLabel")
+    badge.BackgroundColor3 = self.Theme.Accent
+    badge.AnchorPoint = Vector2.new(1,0.5)
+    badge.Position = UDim2.new(1, -self:S(28), 0.5, 0)
+    badge.Size = UDim2.new(0, self:S(22), 0, self:S(18))
+    badge.Font = self:GetFontBold()
+    badge.TextSize = self:S(10)
+    badge.TextColor3 = Color3.new(1,1,1)
+    badge.ZIndex = 15
+    badge.Parent = dropBtn
+    self:CreateCorner(badge, UDim.new(0, 5))
+
     local arrow = Instance.new("ImageLabel")
-    arrow.Name = "Arrow"
     arrow.BackgroundTransparency = 1
-    arrow.Position = UDim2.new(1, -self:S(28), 0, 0)
-    arrow.Size = UDim2.new(0, self:S(26), 1, 0)
-    arrow.Image = self:FormatAssetId("lucide-chevron-down") or ""
+    arrow.Size = UDim2.fromOffset(self:S(12), self:S(12))
+    arrow.AnchorPoint = Vector2.new(1,0.5)
+    arrow.Position = UDim2.new(1, -self:S(10), 0.5, 0)
+    arrow.Image = self:FormatAssetId("lucide-chevron-down") or "rbxassetid://10709790948"
     arrow.ImageColor3 = self.Theme.Accent
     arrow.ZIndex = 15
     arrow.Parent = dropBtn
@@ -3798,253 +3808,186 @@ function GenesisX:CreateMultiDropdown(parent, config)
     for _, v in ipairs(default) do table.insert(selected, v) end
     local isOpen = false
 
-    local overlay = Instance.new("Frame")
-    overlay.Name = "MultiDropdownOverlay"
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    local overlay = Instance.new("TextButton")
+    overlay.Size = UDim2.fromScale(1,1)
+    overlay.BackgroundColor3 = Color3.new(0,0,0)
     overlay.BackgroundTransparency = 1
-    overlay.BorderSizePixel = 0
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.ZIndex = 500
+    overlay.Text = ""
+    overlay.AutoButtonColor = false
     overlay.Visible = false
+    overlay.ZIndex = 650
     overlay.Parent = self.ScreenGui
 
     local listContainer = Instance.new("Frame")
-    listContainer.Name = "ListContainer"
-    listContainer.BackgroundColor3 = self.Theme.Card
+    listContainer.BackgroundColor3 = self.Theme.Sidebar
     listContainer.BorderSizePixel = 0
-    listContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-    listContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-    listContainer.Size = UDim2.new(0, 0, 0, 0)
-    listContainer.ZIndex = 501
+    listContainer.AnchorPoint = Vector2.new(0.5,0.5)
+    listContainer.Position = UDim2.new(0.5,0,0.5,0)
+    listContainer.Size = UDim2.new(0, self:S(340), 0, 0)
     listContainer.Visible = false
+    listContainer.ZIndex = 651
     listContainer.Parent = overlay
     self:CreateCorner(listContainer, UDim.new(0, 10))
-    self:CreateStroke(listContainer, self.Theme.Accent, 1.5, 0.3)
+    self:CreateStroke(listContainer, self.Theme.BorderBright, 1, 0.12)
 
     local listTitle = Instance.new("TextLabel")
-    listTitle.Name = "Title"
     listTitle.BackgroundTransparency = 1
     listTitle.Position = UDim2.new(0, self:S(16), 0, self:S(12))
-    listTitle.Size = UDim2.new(0.6, 0, 0, self:S(22))
+    listTitle.Size = UDim2.new(1, -self:S(54), 0, self:S(18))
     listTitle.Font = self:GetFontBold()
     listTitle.Text = labelText
     listTitle.TextColor3 = self.Theme.Text
     listTitle.TextSize = self:S(14)
     listTitle.TextXAlignment = Enum.TextXAlignment.Left
-    listTitle.ZIndex = 502
+    listTitle.ZIndex = 652
     listTitle.Parent = listContainer
 
-    local countBadge = Instance.new("TextLabel")
-    countBadge.Name = "CountBadge"
-    countBadge.BackgroundColor3 = self.Theme.Accent
-    countBadge.Position = UDim2.new(1, -self:S(48), 0, self:S(10))
-    countBadge.Size = UDim2.new(0, self:S(36), 0, self:S(22))
-    countBadge.Font = self:GetFontBold()
-    countBadge.Text = "0"
-    countBadge.TextColor3 = Color3.new(1, 1, 1)
-    countBadge.TextSize = self:S(11)
-    countBadge.ZIndex = 502
-    countBadge.Parent = listContainer
-    self:CreateCorner(countBadge, UDim.new(0, 4))
+    local confirmBtn = Instance.new("TextButton")
+    confirmBtn.BackgroundColor3 = self.Theme.Accent
+    confirmBtn.BorderSizePixel = 0
+    confirmBtn.Position = UDim2.new(0, self:S(12), 1, -self:S(46))
+    confirmBtn.Size = UDim2.new(1, -self:S(24), 0, self:S(34))
+    confirmBtn.Text = "Confirm"
+    confirmBtn.Font = self:GetFontBold()
+    confirmBtn.TextSize = self:S(12)
+    confirmBtn.TextColor3 = Color3.new(1,1,1)
+    confirmBtn.AutoButtonColor = false
+    confirmBtn.ZIndex = 652
+    confirmBtn.Parent = listContainer
+    self:CreateCorner(confirmBtn, UDim.new(0, 8))
 
     local dropList = Instance.new("ScrollingFrame")
-    dropList.Name = "DropList"
     dropList.BackgroundTransparency = 1
     dropList.BorderSizePixel = 0
-    dropList.Position = UDim2.new(0, self:S(12), 0, self:S(42))
-    dropList.Size = UDim2.new(1, -self:S(24), 1, -self:S(56))
-    dropList.ScrollBarThickness = 4
+    dropList.Position = UDim2.new(0, self:S(8), 0, self:S(48))
+    dropList.Size = UDim2.new(1, -self:S(16), 1, -self:S(98))
+    dropList.ScrollBarThickness = 3
     dropList.ScrollBarImageColor3 = self.Theme.Accent
-    dropList.ScrollBarImageTransparency = 0.4
-    dropList.ZIndex = 502
+    dropList.CanvasSize = UDim2.new(0,0,0,0)
+    dropList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dropList.ZIndex = 652
     dropList.Parent = listContainer
-
     local listLayout = Instance.new("UIListLayout")
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, self:S(4))
     listLayout.Parent = dropList
+    local listPad = Instance.new("UIPadding")
+    listPad.PaddingTop = UDim.new(0,self:S(2))
+    listPad.PaddingBottom = UDim.new(0,self:S(6))
+    listPad.PaddingLeft = UDim.new(0,self:S(2))
+    listPad.PaddingRight = UDim.new(0,self:S(2))
+    listPad.Parent = dropList
 
-    local listPadding = Instance.new("UIPadding")
-    listPadding.PaddingTop    = UDim.new(0, self:S(4))
-    listPadding.PaddingBottom = UDim.new(0, self:S(4))
-    listPadding.PaddingLeft   = UDim.new(0, self:S(4))
-    listPadding.PaddingRight  = UDim.new(0, self:S(4))
-    listPadding.Parent = dropList
-
-    local function updateText()
-        if #selected == 0 then
-            dropBtn.Text = "  Selecionar..."
-            dropBtn.TextColor3 = self.Theme.TextMuted
-        elseif #selected == 1 then
-            dropBtn.Text = "  " .. selected[1]
-            dropBtn.TextColor3 = self.Theme.Text
-        else
-            dropBtn.Text = "  " .. #selected .. " selecionados"
-            dropBtn.TextColor3 = self.Theme.Text
-        end
-        countBadge.Text = tostring(#selected)
-    end
-
-    local function closeDropdown()
-        if not isOpen then return end
-        isOpen = false
-        self:Tween(overlay, {BackgroundTransparency = 1}, 0.2)
-        self:Tween(listContainer, {Size = UDim2.new(0, self:S(320), 0, 0)}, 0.2)
-        self:Tween(arrow, {Rotation = 0}, 0.2)
-        if dropStroke then
-            self:Tween(dropStroke, {Color = self.Theme.Border, Transparency = 0.4}, 0.2)
-        end
-        task.wait(0.2)
-        overlay.Visible = false
-        listContainer.Visible = false
-    end
-
-    local function isSelectedFn(name)
-        for _, v in ipairs(selected) do
-            if v == name then return true end
-        end
+    local function exists(name)
+        for _, v in ipairs(selected) do if tostring(v) == tostring(name) then return true end end
         return false
     end
-
     local function toggle(name)
         for i, v in ipairs(selected) do
-            if v == name then
-                table.remove(selected, i)
-                return false
-            end
+            if tostring(v) == tostring(name) then table.remove(selected, i) return false end
         end
         table.insert(selected, name)
         return true
     end
-
-    local function populate()
-        for _, child in ipairs(dropList:GetChildren()) do
-            if child:IsA("Frame") then child:Destroy() end
+    local function updateDisplay()
+        local count = #selected
+        if count == 0 then
+            valueText.Text = "Selecionar..."
+            valueText.TextColor3 = self.Theme.TextMuted
+        elseif count == 1 then
+            valueText.Text = tostring(selected[1])
+            valueText.TextColor3 = self.Theme.Text
+        elseif count == 2 then
+            valueText.Text = tostring(selected[1]) .. ", " .. tostring(selected[2])
+            valueText.TextColor3 = self.Theme.Text
+        else
+            valueText.Text = tostring(selected[1]) .. " +" .. tostring(count - 1)
+            valueText.TextColor3 = self.Theme.Text
         end
-
+        badge.Text = tostring(count)
+        badge.Visible = count > 0
+    end
+    local function populate()
+        for _, child in ipairs(dropList:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
         for _, option in ipairs(options) do
-            local sel = isSelectedFn(option)
-
+            local active = exists(option)
             local row = Instance.new("Frame")
-            row.BackgroundColor3 = sel and self.Theme.AccentDark or self.Theme.Input
-            row.Size = UDim2.new(1, 0, 0, self:S(38))
-            row.ZIndex = 503
+            row.BackgroundColor3 = active and self.Theme.AccentDark or self.Theme.Card
+            row.Size = UDim2.new(1,0,0,self:S(34))
+            row.ZIndex = 653
             row.Parent = dropList
-            self:CreateCorner(row, UDim.new(0, 6))
-
-            local cbSize = self:S(18)
-            local checkbox = Instance.new("Frame")
-            checkbox.Name = "Checkbox"
-            checkbox.BackgroundColor3 = sel and self.Theme.Accent or self.Theme.Border
-            checkbox.Position = UDim2.new(0, self:S(10), 0.5, -cbSize/2)
-            checkbox.Size = UDim2.new(0, cbSize, 0, cbSize)
-            checkbox.ZIndex = 504
-            checkbox.Parent = row
-            self:CreateCorner(checkbox, UDim.new(0, 4))
-
-            if sel then
-                -- CHECKMARK LUCIDE (check)
-                local check = Instance.new("ImageLabel")
-                check.Name = "Check"
-                check.BackgroundTransparency = 1
-                check.Size = UDim2.new(1, 0, 1, 0)
-                check.Image = self:FormatAssetId("lucide-check") or ""
-                check.ImageColor3 = Color3.new(1, 1, 1)
-                check.ZIndex = 505
-                check.Parent = checkbox
-            end
+            self:CreateCorner(row, UDim.new(0,6))
+            self:CreateStroke(row, active and self.Theme.Accent or self.Theme.Border, 1, active and 0.12 or 0.28)
 
             local rowBtn = Instance.new("TextButton")
             rowBtn.BackgroundTransparency = 1
-            rowBtn.Size = UDim2.new(1, 0, 1, 0)
-            rowBtn.Font = self:GetFontSemibold()
-            rowBtn.Text = "      " .. option
-            rowBtn.TextColor3 = sel and Color3.new(1, 1, 1) or self.Theme.TextSecondary
-            rowBtn.TextSize = self:S(12)
-            rowBtn.TextXAlignment = Enum.TextXAlignment.Left
-            rowBtn.ZIndex = 504
+            rowBtn.Size = UDim2.new(1,0,1,0)
+            rowBtn.Text = ""
+            rowBtn.AutoButtonColor = false
+            rowBtn.ZIndex = 654
             rowBtn.Parent = row
 
-            local rowPad = Instance.new("UIPadding")
-            rowPad.PaddingLeft = UDim.new(0, self:S(12))
-            rowPad.Parent = rowBtn
+            local rowText = Instance.new("TextLabel")
+            rowText.BackgroundTransparency = 1
+            rowText.Position = UDim2.new(0, self:S(12), 0, 0)
+            rowText.Size = UDim2.new(1, -self:S(24), 1, 0)
+            rowText.Font = self:GetFontSemibold()
+            rowText.Text = tostring(option)
+            rowText.TextColor3 = active and self.Theme.AccentSecondary or self.Theme.TextSecondary
+            rowText.TextSize = self:S(12)
+            rowText.TextXAlignment = Enum.TextXAlignment.Left
+            rowText.ZIndex = 654
+            rowText.Parent = row
 
-            rowBtn.MouseButton1Click:Connect(function()
-                toggle(option)
-                callback(selected)
-                updateText()
-                populate()
-            end)
-            rowBtn.MouseEnter:Connect(function()
-                if not sel then
-                    self:Tween(row, {BackgroundColor3 = self.Theme.CardHover}, 0.1)
-                end
-            end)
-            rowBtn.MouseLeave:Connect(function()
-                if not sel then
-                    self:Tween(row, {BackgroundColor3 = self.Theme.Input}, 0.1)
-                end
-            end)
+            rowBtn.MouseEnter:Connect(function() if not active then self:Tween(row, {BackgroundColor3 = self.Theme.CardHover}, 0.1) end end)
+            rowBtn.MouseLeave:Connect(function() if not active then self:Tween(row, {BackgroundColor3 = self.Theme.Card}, 0.1) end end)
+            rowBtn.MouseButton1Click:Connect(function() toggle(option); updateDisplay(); populate() end)
         end
     end
-
-    dropBtn.MouseEnter:Connect(function()
-        self:Tween(dropBtn, {BackgroundColor3 = self.Theme.InputHover}, 0.15)
-    end)
-    dropBtn.MouseLeave:Connect(function()
-        self:Tween(dropBtn, {BackgroundColor3 = self.Theme.Input}, 0.15)
-    end)
-
-    dropBtn.MouseButton1Click:Connect(function()
-        if isOpen then closeDropdown(); return end
+    local function closeDropdown()
+        if not isOpen then return end
+        isOpen = false
+        self:Tween(overlay, {BackgroundTransparency = 1}, 0.16)
+        self:Tween(listContainer, {Size = UDim2.new(0, self:S(340), 0, 0)}, 0.18)
+        self:Tween(arrow, {Rotation = 0}, 0.16)
+        if dropStroke then self:Tween(dropStroke, {Color = self.Theme.Border, Transparency = 0.3}, 0.16) end
+        task.delay(0.18, function() overlay.Visible = false; listContainer.Visible = false end)
+    end
+    local function openDropdown()
+        if isOpen then return end
+        isOpen = true
         populate()
-        local contentHeight = listLayout.AbsoluteContentSize.Y + self:S(64)
-        local targetHeight = math.min(contentHeight, self:S(360))
-        local targetWidth = self:S(320)
         overlay.Visible = true
         listContainer.Visible = true
         overlay.BackgroundTransparency = 1
-        listContainer.Size = UDim2.new(0, targetWidth, 0, 0)
-        self:Tween(overlay, {BackgroundTransparency = 0.45}, 0.25)
-        self:Tween(listContainer, {
-            Size = UDim2.new(0, targetWidth, 0, targetHeight)
-        }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        self:Tween(arrow, {Rotation = 180}, 0.2)
-        if dropStroke then
-            self:Tween(dropStroke, {Color = self.Theme.Accent, Transparency = 0.2}, 0.2)
-        end
-        dropList.CanvasSize = UDim2.new(0, 0, 0,
-            listLayout.AbsoluteContentSize.Y + self:S(16))
-        isOpen = true
-    end)
+        listContainer.Size = UDim2.new(0, self:S(340), 0, 0)
+        self:Tween(overlay, {BackgroundTransparency = 0.45}, 0.18)
+        self:Tween(listContainer, {Size = UDim2.new(0, self:S(340), 0, self:S(360))}, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        self:Tween(arrow, {Rotation = 180}, 0.16)
+        if dropStroke then self:Tween(dropStroke, {Color = self.Theme.Accent, Transparency = 0.1}, 0.16) end
+    end
 
-    overlay.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            local pos = input.Position
-            local listPos = listContainer.AbsolutePosition
-            local listSize = listContainer.AbsoluteSize
-            local inList = pos.X >= listPos.X and pos.X <= listPos.X + listSize.X
-                       and pos.Y >= listPos.Y and pos.Y <= listPos.Y + listSize.Y
-            if not inList then closeDropdown() end
-        end
-    end)
+    confirmBtn.MouseButton1Click:Connect(function() callback(selected); closeDropdown() end)
+    overlay.MouseButton1Click:Connect(closeDropdown)
+    dropBtn.MouseButton1Click:Connect(function() if isOpen then closeDropdown() else openDropdown() end end)
+    dropBtn.MouseEnter:Connect(function() self:Tween(dropBtn, {BackgroundColor3 = self.Theme.InputHover}, 0.12) end)
+    dropBtn.MouseLeave:Connect(function() self:Tween(dropBtn, {BackgroundColor3 = self.Theme.Input}, 0.12) end)
 
-    updateText()
+    updateDisplay()
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.BorderBright, Transparency = 0.15}, 0.12) end
+    end)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        if frameStroke then self:Tween(frameStroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
+    end)
 
     return {
-        Frame     = frame,
+        Frame = frame,
         GetValues = function() return selected end,
-        SetValues = function(v)
-            selected = {}
-            for _, val in ipairs(v) do table.insert(selected, val) end
-            updateText()
-            -- Refresh UI if dropdown is open
-            if isOpen then
-                populate()
-            end
-        end,
-        SetOptions = function(newOptions) options = newOptions end,
+        SetValues = function(v) selected = {}; for _, val in ipairs(v or {}) do table.insert(selected, val) end; updateDisplay(); if isOpen then populate() end end,
+        SetOptions = function(newOptions) options = newOptions or {}; if isOpen then populate() end end,
     }
 end
 
@@ -4131,128 +4074,91 @@ function GenesisX:CreateLabel(parent, config)
     local function normalizeText(t)
         t = tostring(t or "")
         t = t:gsub("\r\n", "\n"):gsub("\r", "\n")
-        -- literal backslash-n (from some serializers / remote strings)
         t = t:gsub("\\n", "\n")
         return t
     end
-
-    local text      = normalizeText(config.Text or "Label")
-    local color     = config.Color or self.Theme.TextSecondary
-    local wrapped   = (config.Wrapped ~= false)
-    local padV      = self:S(10)
-    local padH      = self:S(14)
-    local minHeight = self:S(36)
-    local textSize  = self:S(12)
-    local font      = self:GetFontSemibold()
-
+    local text = normalizeText(config.Text or "Label")
+    local subtitle = normalizeText(config.Subtitle or config.Description or "")
+    local color = config.Color or self.Theme.Text
+    local padH = self:S(14)
+    local padV = self:S(10)
     local frame = Instance.new("Frame")
     frame.Name = "LabelFrame"
     frame.BackgroundColor3 = self.Theme.Card
-    frame.Size = UDim2.new(1, 0, 0, minHeight)
-    frame.ClipsDescendants = false
+    frame.Size = UDim2.new(1,0,0,self:S(44))
     frame.ZIndex = 12
     frame.Parent = parent
     frame.BackgroundTransparency = self.Config.Transparency
-    self:CreateCorner(frame)
-    self:CreateStroke(frame, self.Theme.Border, 1, 0.5)
+    self:CreateCorner(frame, UDim.new(0,8))
+    local stroke = self:CreateStroke(frame, self.Theme.Border, 1, 0.35)
 
-    local pad = Instance.new("UIPadding")
-    pad.PaddingLeft   = UDim.new(0, padH)
-    pad.PaddingRight  = UDim.new(0, padH)
-    pad.PaddingTop    = UDim.new(0, padV)
-    pad.PaddingBottom = UDim.new(0, padV)
-    pad.Parent = frame
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Position = UDim2.new(0, padH, 0, padV)
+    title.Size = UDim2.new(1, -padH*2, 0, self:S(16))
+    title.Font = self:GetFontBold()
+    title.Text = text
+    title.TextColor3 = color
+    title.TextSize = self:S(13)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextWrapped = true
+    title.RichText = config.RichText == true
+    title.ZIndex = 13
+    title.Parent = frame
 
-    local label = Instance.new("TextLabel")
-    label.Name = "Text"
-    label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, 0, 0, 0)
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.Font = font
-    label.Text = text
-    label.TextColor3 = color
-    label.TextSize = textSize
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextYAlignment = Enum.TextYAlignment.Top
-    label.TextWrapped = wrapped
-    label.TextTruncate = Enum.TextTruncate.None
-    label.RichText = config.RichText == true
-    label.ZIndex = 13
-    label.Parent = frame
+    local sub
+    if subtitle ~= "" then
+        sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, padH, 0, self:S(28))
+        sub.Size = UDim2.new(1, -padH*2, 0, self:S(14))
+        sub.Font = self:GetFont()
+        sub.Text = subtitle
+        sub.TextColor3 = self.Theme.TextMuted
+        sub.TextSize = self:S(10)
+        sub.TextXAlignment = Enum.TextXAlignment.Left
+        sub.TextWrapped = true
+        sub.RichText = config.RichText == true
+        sub.ZIndex = 13
+        sub.Parent = frame
+    end
 
-    local function measureHeight(str)
-        str = normalizeText(str)
-        local width = frame.AbsoluteSize.X - (padH * 2)
-        if width < 8 then
-            -- parent may not be laid out yet; estimate from grandparent
-            local p = parent
-            if p and p.AbsoluteSize and p.AbsoluteSize.X > 0 then
-                width = math.max(40, p.AbsoluteSize.X - (padH * 2) - self:S(8))
-            else
-                width = self:S(260)
-            end
-        end
+    local function getHeight(lbl, width)
         local ok, bounds = pcall(function()
-            return TextService:GetTextSize(str, textSize, font, Vector2.new(width, 10000))
+            return TextService:GetTextSize(lbl.Text, lbl.TextSize, lbl.Font, Vector2.new(width, 10000))
         end)
-        if ok and bounds and bounds.Y then
-            return math.max(textSize, math.ceil(bounds.Y))
-        end
-        -- fallback: count lines
-        local lines = 1
-        for _ in str:gmatch("\n") do lines = lines + 1 end
-        -- rough wrap estimate
-        local charsPerLine = math.max(8, math.floor(width / (textSize * 0.55)))
-        local extra = 0
-        for line in (str .. "\n"):gmatch("(.-)\n") do
-            extra = extra + math.max(0, math.ceil(#line / charsPerLine) - 1)
-        end
-        return (lines + extra) * (textSize + 2)
+        return (ok and bounds and bounds.Y or lbl.TextSize)
     end
-
-    local function updateHeight()
-        if not label or not label.Parent or not frame or not frame.Parent then return end
-        label.TextWrapped = wrapped
-        label.TextTruncate = Enum.TextTruncate.None
-        local textH = measureHeight(label.Text)
-        -- also prefer TextBounds when available and larger
-        local tb = label.TextBounds
-        if tb and tb.Y and tb.Y > textH then
-            textH = tb.Y
+    local function relayout()
+        local width = math.max(frame.AbsoluteSize.X - padH*2, self:S(180))
+        local th = getHeight(title, width)
+        title.Size = UDim2.new(1, -padH*2, 0, th)
+        local total = padV + th + padV
+        if sub then
+            local sh = getHeight(sub, width)
+            sub.Position = UDim2.new(0, padH, 0, padV + th + self:S(3))
+            sub.Size = UDim2.new(1, -padH*2, 0, sh)
+            total = padV + th + self:S(3) + sh + padV
         end
-        frame.Size = UDim2.new(1, 0, 0, math.max(minHeight, textH + padV * 2))
+        frame.Size = UDim2.new(1, 0, 0, math.max(self:S(44), total))
     end
+    task.defer(relayout)
+    frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() task.defer(relayout) end)
 
-    label:GetPropertyChangedSignal("TextBounds"):Connect(updateHeight)
-    label:GetPropertyChangedSignal("Text"):Connect(function()
-        task.defer(updateHeight)
+    frame.MouseEnter:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
+        if stroke then self:Tween(stroke, {Color = self.Theme.BorderBright, Transparency = 0.15}, 0.12) end
     end)
-    frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        task.defer(updateHeight)
+    frame.MouseLeave:Connect(function()
+        self:Tween(frame, {BackgroundColor3 = self.Theme.Card}, 0.12)
+        if stroke then self:Tween(stroke, {Color = self.Theme.Border, Transparency = 0.35}, 0.12) end
     end)
-    if parent and parent.GetPropertyChangedSignal then
-        pcall(function()
-            parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                task.defer(updateHeight)
-            end)
-        end)
-    end
-
-    task.defer(updateHeight)
-    task.delay(0.05, updateHeight)
-    task.delay(0.2, updateHeight)
 
     return {
-        Frame    = frame,
-        Label    = label,
-        SetText  = function(t)
-            label.Text = normalizeText(t)
-            task.defer(updateHeight)
-            task.delay(0.05, updateHeight)
-        end,
-        SetColor = function(c)
-            label.TextColor3 = c
-        end,
+        Frame = frame,
+        Label = title,
+        SetText = function(t) title.Text = normalizeText(t); task.defer(relayout) end,
+        SetColor = function(c) title.TextColor3 = c end,
     }
 end
 
@@ -4717,13 +4623,12 @@ function GenesisX:CreateDialog(config)
 
     local title = config.Title or "Confirm"
     local desc = config.Description or config.Desc or config.Text or ""
-    local confirmText = config.ConfirmText or config.Yes or "Yes"
-    local cancelText = config.CancelText or config.No or "No"
+    local confirmText = config.ConfirmText or config.Yes or "Confirm"
+    local cancelText = config.CancelText or config.No or "Cancel"
     local onConfirm = config.OnConfirm or config.Callback or function() end
     local onCancel = config.OnCancel or function() end
     local closeOnBackdrop = config.CloseOnBackdrop ~= false
 
-    -- destroy previous dialog if any
     if self._activeDialog and self._activeDialog.Parent then
         self._activeDialog:Destroy()
         self._activeDialog = nil
@@ -4733,169 +4638,128 @@ function GenesisX:CreateDialog(config)
     overlay.Name = "GX_DialogOverlay"
     overlay.BackgroundTransparency = 1
     overlay.BorderSizePixel = 0
-    overlay.Size = UDim2.fromScale(1, 1)
-    overlay.Position = UDim2.fromScale(0, 0)
+    overlay.Size = UDim2.fromScale(1,1)
     overlay.ZIndex = 9000
     overlay.Parent = self.ScreenGui
     self._activeDialog = overlay
 
     local dim = Instance.new("TextButton")
-    dim.Name = "Dim"
-    dim.AutoButtonColor = false
-    dim.Text = ""
-    dim.BackgroundColor3 = Color3.new(0, 0, 0)
+    dim.Size = UDim2.fromScale(1,1)
+    dim.BackgroundColor3 = Color3.new(0,0,0)
     dim.BackgroundTransparency = 1
-    dim.Size = UDim2.fromScale(1, 1)
+    dim.Text = ""
+    dim.AutoButtonColor = false
     dim.ZIndex = 9000
     dim.Parent = overlay
+    self:Tween(dim, {BackgroundTransparency = 0.4}, 0.18)
 
-    self:Tween(dim, {BackgroundTransparency = 0.45}, 0.2)
-
-    local panelW = self:S(ScaleData.IsMobile and 300 or 360)
     local panel = Instance.new("Frame")
     panel.Name = "DialogPanel"
-    panel.BackgroundColor3 = self.Theme.Background
+    panel.BackgroundColor3 = self.Theme.Sidebar
     panel.BorderSizePixel = 0
-    panel.AnchorPoint = Vector2.new(0.5, 0.5)
-    panel.Position = UDim2.new(0.5, 0, 0.5, 12)
-    panel.Size = UDim2.new(0, panelW, 0, 0)
-    panel.AutomaticSize = Enum.AutomaticSize.Y
+    panel.AnchorPoint = Vector2.new(0.5,0.5)
+    panel.Position = UDim2.new(0.5,0,0.5,14)
+    panel.Size = UDim2.new(0, self:S(320), 0, self:S(182))
     panel.ZIndex = 9001
     panel.Parent = overlay
-    self:CreateCorner(panel, UDim.new(0, 6))
-    self:CreateStroke(panel, self.Theme.Accent, 1.2, 0.35)
-    self:_PremiumTexture(panel, 0.82, 6)
+    self:CreateCorner(panel, UDim.new(0, 10))
+    self:CreateStroke(panel, self.Theme.Accent, 1.1, 0.18)
 
-    local pad = Instance.new("UIPadding")
-    pad.PaddingTop = UDim.new(0, self:S(18))
-    pad.PaddingBottom = UDim.new(0, self:S(16))
-    pad.PaddingLeft = UDim.new(0, self:S(18))
-    pad.PaddingRight = UDim.new(0, self:S(18))
-    pad.Parent = panel
-
-    local layout = Instance.new("UIListLayout")
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, self:S(12))
-    layout.Parent = panel
+    local top = Instance.new("Frame")
+    top.BackgroundColor3 = self.Theme.Header
+    top.BorderSizePixel = 0
+    top.Size = UDim2.new(1,0,0,self:S(96))
+    top.ZIndex = 9002
+    top.Parent = panel
+    self:CreateCorner(top, UDim.new(0,10))
+    local mask = Instance.new("Frame")
+    mask.BackgroundColor3 = self.Theme.Header
+    mask.BorderSizePixel = 0
+    mask.Position = UDim2.new(0,0,1,-self:S(14))
+    mask.Size = UDim2.new(1,0,0,self:S(14))
+    mask.ZIndex = 9002
+    mask.Parent = top
 
     local titleLbl = Instance.new("TextLabel")
-    titleLbl.Name = "Title"
     titleLbl.BackgroundTransparency = 1
-    titleLbl.Size = UDim2.new(1, 0, 0, 0)
-    titleLbl.AutomaticSize = Enum.AutomaticSize.Y
+    titleLbl.Position = UDim2.new(0, self:S(16), 0, self:S(108))
+    titleLbl.Size = UDim2.new(1, -self:S(32), 0, self:S(22))
     titleLbl.Font = self:GetFontBold()
     titleLbl.Text = tostring(title)
     titleLbl.TextColor3 = self.Theme.Text
     titleLbl.TextSize = self:S(16)
     titleLbl.TextXAlignment = Enum.TextXAlignment.Left
     titleLbl.TextWrapped = true
-    titleLbl.LayoutOrder = 1
     titleLbl.ZIndex = 9002
     titleLbl.Parent = panel
 
     local descLbl = Instance.new("TextLabel")
-    descLbl.Name = "Description"
     descLbl.BackgroundTransparency = 1
-    descLbl.Size = UDim2.new(1, 0, 0, 0)
-    descLbl.AutomaticSize = Enum.AutomaticSize.Y
-    descLbl.Font = self:GetFont()
+    descLbl.Position = UDim2.new(0, self:S(16), 0, self:S(138))
+    descLbl.Size = UDim2.new(1, -self:S(32), 0, self:S(34))
+    descLbl.Font = self:GetFontSemibold()
     descLbl.Text = tostring(desc)
     descLbl.TextColor3 = self.Theme.TextSecondary
-    descLbl.TextSize = self:S(13)
+    descLbl.TextSize = self:S(12)
     descLbl.TextXAlignment = Enum.TextXAlignment.Left
     descLbl.TextWrapped = true
-    descLbl.LayoutOrder = 2
     descLbl.ZIndex = 9002
     descLbl.Parent = panel
 
-    local btnRow = Instance.new("Frame")
-    btnRow.Name = "Buttons"
-    btnRow.BackgroundTransparency = 1
-    btnRow.Size = UDim2.new(1, 0, 0, self:S(40))
-    btnRow.LayoutOrder = 3
-    btnRow.ZIndex = 9002
-    btnRow.Parent = panel
+    local cancelBtn = Instance.new("TextButton")
+    cancelBtn.BackgroundColor3 = self.Theme.Card
+    cancelBtn.BorderSizePixel = 0
+    cancelBtn.AnchorPoint = Vector2.new(1,1)
+    cancelBtn.Position = UDim2.new(0.5, -self:S(6), 1, -self:S(12))
+    cancelBtn.Size = UDim2.new(0, self:S(104), 0, self:S(34))
+    cancelBtn.Text = tostring(cancelText)
+    cancelBtn.Font = self:GetFontBold()
+    cancelBtn.TextSize = self:S(13)
+    cancelBtn.TextColor3 = self.Theme.Text
+    cancelBtn.AutoButtonColor = false
+    cancelBtn.ZIndex = 9003
+    cancelBtn.Parent = panel
+    self:CreateCorner(cancelBtn, UDim.new(0,8))
+    self:CreateStroke(cancelBtn, self.Theme.Border, 1, 0.25)
 
-    local btnLayout = Instance.new("UIListLayout")
-    btnLayout.FillDirection = Enum.FillDirection.Horizontal
-    btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    btnLayout.Padding = UDim.new(0, self:S(10))
-    btnLayout.Parent = btnRow
-
-    local function makeBtn(text, style, order)
-        local b = Instance.new("TextButton")
-        b.Name = "Btn_" .. tostring(order)
-        b.AutoButtonColor = false
-        b.Size = UDim2.new(0, self:S(110), 0, self:S(36))
-        b.Font = self:GetFontSemibold()
-        b.Text = tostring(text)
-        b.TextSize = self:S(13)
-        b.ZIndex = 9003
-        b.LayoutOrder = order
-        b.Parent = btnRow
-        self:CreateCorner(b, UDim.new(0, 8))
-
-        if style == "confirm" then
-            b.BackgroundColor3 = self.Theme.Accent
-            b.TextColor3 = Color3.new(1, 1, 1)
-            self:CreateStroke(b, self.Theme.AccentHover, 1, 0.4)
-        else
-            b.BackgroundColor3 = self.Theme.Input
-            b.TextColor3 = self.Theme.Text
-            self:CreateStroke(b, self.Theme.Border, 1, 0.4)
-        end
-
-        b.MouseEnter:Connect(function()
-            if style == "confirm" then
-                self:Tween(b, {BackgroundColor3 = self.Theme.AccentHover}, 0.12)
-            else
-                self:Tween(b, {BackgroundColor3 = self.Theme.CardHover}, 0.12)
-            end
-        end)
-        b.MouseLeave:Connect(function()
-            if style == "confirm" then
-                self:Tween(b, {BackgroundColor3 = self.Theme.Accent}, 0.12)
-            else
-                self:Tween(b, {BackgroundColor3 = self.Theme.Input}, 0.12)
-            end
-        end)
-        return b
-    end
-
-    -- order: cancel left, confirm right (right-aligned row)
-    local cancelBtn = makeBtn(cancelText, "cancel", 1)
-    local confirmBtn = makeBtn(confirmText, "confirm", 2)
+    local confirmBtn = Instance.new("TextButton")
+    confirmBtn.BackgroundColor3 = self.Theme.Accent
+    confirmBtn.BorderSizePixel = 0
+    confirmBtn.AnchorPoint = Vector2.new(0,1)
+    confirmBtn.Position = UDim2.new(0.5, self:S(6), 1, -self:S(12))
+    confirmBtn.Size = UDim2.new(0, self:S(104), 0, self:S(34))
+    confirmBtn.Text = tostring(confirmText)
+    confirmBtn.Font = self:GetFontBold()
+    confirmBtn.TextSize = self:S(13)
+    confirmBtn.TextColor3 = Color3.new(1,1,1)
+    confirmBtn.AutoButtonColor = false
+    confirmBtn.ZIndex = 9003
+    confirmBtn.Parent = panel
+    self:CreateCorner(confirmBtn, UDim.new(0,8))
 
     local closed = false
     local function close(result)
         if closed then return end
         closed = true
-        self:Tween(dim, {BackgroundTransparency = 1}, 0.18)
-        self:Tween(panel, {Position = UDim2.new(0.5, 0, 0.5, 20)}, 0.18)
-        task.delay(0.2, function()
+        self:Tween(dim, {BackgroundTransparency = 1}, 0.16)
+        self:Tween(panel, {Position = UDim2.new(0.5,0,0.5,20)}, 0.16)
+        task.delay(0.18, function()
             if overlay and overlay.Parent then overlay:Destroy() end
             if self._activeDialog == overlay then self._activeDialog = nil end
         end)
-        if result == true then
-            pcall(onConfirm)
-        else
-            pcall(onCancel)
-        end
+        if result == true then pcall(onConfirm) else pcall(onCancel) end
     end
 
-    confirmBtn.MouseButton1Click:Connect(function() close(true) end)
     cancelBtn.MouseButton1Click:Connect(function() close(false) end)
+    confirmBtn.MouseButton1Click:Connect(function() close(true) end)
+    if closeOnBackdrop then dim.MouseButton1Click:Connect(function() close(false) end) end
 
-    if closeOnBackdrop then
-        dim.MouseButton1Click:Connect(function()
-            close(false)
-        end)
-    end
+    cancelBtn.MouseEnter:Connect(function() self:Tween(cancelBtn, {BackgroundColor3 = self.Theme.CardHover}, 0.12) end)
+    cancelBtn.MouseLeave:Connect(function() self:Tween(cancelBtn, {BackgroundColor3 = self.Theme.Card}, 0.12) end)
+    confirmBtn.MouseEnter:Connect(function() self:Tween(confirmBtn, {BackgroundColor3 = self.Theme.AccentHover}, 0.12) end)
+    confirmBtn.MouseLeave:Connect(function() self:Tween(confirmBtn, {BackgroundColor3 = self.Theme.Accent}, 0.12) end)
 
-    -- entrance
-    panel.Position = UDim2.new(0.5, 0, 0.5, 24)
-    self:Tween(panel, {Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    self:Tween(panel, {Position = UDim2.new(0.5,0,0.5,0)}, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
     return {
         Close = function() close(false) end,
